@@ -26,3 +26,22 @@ describe('FlixBus provider stub', () => {
     });
   });
 });
+
+describe('FlixBus provider book stub', () => {
+  const params = {
+    trip: { provider: 'flixbus', origin: 'LON', destination: 'PAR' },
+    passengers: [{ name: 'John Doe', email: 'john@example.com' }],
+  };
+
+  it('returns a booking reference starting with FB-', async () => {
+    const { book } = require('../../src/providers/flixbus');
+    const result = await book(params);
+    expect(result.bookingRef).toMatch(/^FB-/);
+  });
+
+  it('returns confirmed status', async () => {
+    const { book } = require('../../src/providers/flixbus');
+    const result = await book(params);
+    expect(result.status).toBe('confirmed');
+  });
+});

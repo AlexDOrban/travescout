@@ -39,4 +39,12 @@ async function search(params) {
   ];
 }
 
-module.exports = { search };
+async function book({ trip, passengers }) {
+  return {
+    bookingRef: `FB-${Date.now()}`,
+    status: 'confirmed',
+    ticketUrl: null,
+  };
+}
+
+module.exports = { search, book };

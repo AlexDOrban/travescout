@@ -23,4 +23,12 @@ async function search(params) {
   return response.data || [];
 }
 
-module.exports = { search };
+async function book({ trip, passengers }) {
+  return {
+    bookingRef: `AM-${Date.now()}`,
+    status: 'confirmed',
+    ticketUrl: null,
+  };
+}
+
+module.exports = { search, book };

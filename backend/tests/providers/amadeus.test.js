@@ -77,3 +77,23 @@ describe('Amadeus provider', () => {
     await expect(search(params)).rejects.toThrow('API error');
   });
 });
+
+describe('Amadeus provider book stub', () => {
+  const params = {
+    trip: { provider: 'amadeus', origin: 'LHR', destination: 'CDG' },
+    passengers: [{ name: 'Alice Smith', email: 'alice@example.com' }],
+  };
+
+  it('returns a booking reference starting with AM-', async () => {
+    // No mock needed — book() is a pure stub with no external calls
+    const { book } = require('../../src/providers/amadeus');
+    const result = await book(params);
+    expect(result.bookingRef).toMatch(/^AM-/);
+  });
+
+  it('returns confirmed status', async () => {
+    const { book } = require('../../src/providers/amadeus');
+    const result = await book(params);
+    expect(result.status).toBe('confirmed');
+  });
+});

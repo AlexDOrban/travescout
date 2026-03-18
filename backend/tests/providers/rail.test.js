@@ -26,3 +26,22 @@ describe('Rail provider stub', () => {
     });
   });
 });
+
+describe('Rail provider book stub', () => {
+  const params = {
+    trip: { provider: 'rail', origin: 'LON', destination: 'PAR' },
+    passengers: [{ name: 'Jane Doe', email: 'jane@example.com' }],
+  };
+
+  it('returns a booking reference starting with TL-', async () => {
+    const { book } = require('../../src/providers/rail');
+    const result = await book(params);
+    expect(result.bookingRef).toMatch(/^TL-/);
+  });
+
+  it('returns confirmed status', async () => {
+    const { book } = require('../../src/providers/rail');
+    const result = await book(params);
+    expect(result.status).toBe('confirmed');
+  });
+});
