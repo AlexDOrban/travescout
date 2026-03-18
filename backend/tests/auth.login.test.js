@@ -21,6 +21,7 @@ describe('POST /auth/login', () => {
       .send({ email: 'login@example.com', password: 'correct_pass' });
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeDefined();
+    expect(res.body.refreshToken).toBeDefined();
   });
 
   it('returns 401 for wrong password', async () => {
