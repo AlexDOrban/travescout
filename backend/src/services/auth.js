@@ -5,6 +5,15 @@ const RefreshToken = require('../models/refreshToken');
 
 const BCRYPT_ROUNDS = 12;
 
+const REFRESH_TOKEN_TTL_MS = (() => {
+  const val = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+  const match = val.match(/^(\d+)([smhd])$/);
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const n = parseInt(match[1], 10);
+  const unit = { s: 1000, m: 60000, h: 3600000, d: 86400000 }[match[2]];
+  return n * unit;
+})();
+
 function makeAccessToken(userId) {
   return jwt.sign({ sub: userId }, process.env.JWT_ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
@@ -28,7 +37,7 @@ async function register(email, password) {
   const user = await User.create(email, hash);
   const accessToken = makeAccessToken(user.id);
   const refreshToken = makeRefreshToken(user.id);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
   await RefreshToken.save(user.id, refreshToken, expiresAt);
   return { user, accessToken, refreshToken };
 }
@@ -48,7 +57,7 @@ async function login(email, password) {
   }
   const accessToken = makeAccessToken(user.id);
   const refreshToken = makeRefreshToken(user.id);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
   await RefreshToken.save(user.id, refreshToken, expiresAt);
   return { user, accessToken, refreshToken };
 }
@@ -70,7 +79,7 @@ async function refresh(token) {
   }
   await RefreshToken.remove(token);
   const newRefresh = makeRefreshToken(payload.sub);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
   await RefreshToken.save(payload.sub, newRefresh, expiresAt);
   const accessToken = makeAccessToken(payload.sub);
   return { accessToken, refreshToken: newRefresh };

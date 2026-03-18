@@ -8,6 +8,9 @@ function requireAuth(req, res, next) {
   const token = header.slice(7);
   try {
     const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    if (!payload.sub || typeof payload.sub !== 'string') {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
     req.userId = payload.sub;
     next();
   } catch {
