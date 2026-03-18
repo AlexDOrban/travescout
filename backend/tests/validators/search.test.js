@@ -40,4 +40,34 @@ describe('parseSearchParams', () => {
   it('throws if returnDate is malformed', () => {
     expect(() => parseSearchParams({ ...valid, returnDate: 'bad' })).toThrow();
   });
+
+  // adults validation
+  it('throws if adults is a non-numeric string', () => {
+    expect(() => parseSearchParams({ ...valid, adults: 'abc' })).toThrow();
+  });
+
+  it('throws if adults is 0', () => {
+    expect(() => parseSearchParams({ ...valid, adults: '0' })).toThrow();
+  });
+
+  it('throws if adults is negative', () => {
+    expect(() => parseSearchParams({ ...valid, adults: '-1' })).toThrow();
+  });
+
+  it('throws if adults is greater than 9', () => {
+    expect(() => parseSearchParams({ ...valid, adults: '10' })).toThrow();
+  });
+
+  it('accepts adults of 9 (boundary)', () => {
+    expect(parseSearchParams({ ...valid, adults: '9' }).adults).toBe(9);
+  });
+
+  // calendar date validation
+  it('throws if departDate has an invalid month (13)', () => {
+    expect(() => parseSearchParams({ ...valid, departDate: '2026-13-01' })).toThrow();
+  });
+
+  it('throws if departDate has an invalid day (99)', () => {
+    expect(() => parseSearchParams({ ...valid, departDate: '2026-01-99' })).toThrow();
+  });
 });
