@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "TraveScout",
+    "slug": "travescout",
+    "version": "1.0.0",
+    "scheme": "travescout",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
