@@ -16,4 +16,19 @@ async function create(email, passwordHash) {
   return rows[0];
 }
 
-module.exports = { findByEmail, create };
+async function findById(id) {
+  const { rows } = await db.query(
+    'SELECT * FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function setStripeCustomerId(id, stripeCustomerId) {
+  await db.query(
+    'UPDATE users SET stripe_customer_id = $1 WHERE id = $2',
+    [stripeCustomerId, id]
+  );
+}
+
+module.exports = { findByEmail, create, findById, setStripeCustomerId };
