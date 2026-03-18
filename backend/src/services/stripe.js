@@ -20,7 +20,7 @@ async function charge({ customerId, paymentMethodId, amountEur, description }) {
     payment_method: paymentMethodId,
     description,
     confirm: true,
-    return_url: 'https://travescout.app/booking/confirm',
+    return_url: process.env.STRIPE_RETURN_URL || 'https://travescout.app/booking/confirm',
   });
   return intent;
 }

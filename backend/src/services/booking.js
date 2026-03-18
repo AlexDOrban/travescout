@@ -24,12 +24,18 @@ async function book({ userId, trip, passengers, paymentMethodId }) {
   }
 
   // 3. Charge via Stripe
-  await StripeService.charge({
+  const intent = await StripeService.charge({
     customerId: stripeCustomerId,
     paymentMethodId,
     amountEur: trip.priceEur,
     description: `TraveScout: ${trip.origin} → ${trip.destination} via ${trip.provider}`,
   });
+  if (intent.status !== 'succeeded') {
+    throw Object.assign(
+      new Error(`Payment failed: ${intent.status}`),
+      { status: 402 }
+    );
+  }
 
   // 4. Book with provider
   const provider = providers[trip.provider];

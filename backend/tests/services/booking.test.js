@@ -99,4 +99,9 @@ describe('BookingService.book', () => {
     await expect(book({ ...bookParams, trip: { ...tripPayload, provider: 'unknown' } }))
       .rejects.toMatchObject({ status: 400 });
   });
+
+  it('throws 402 if payment intent status is not succeeded', async () => {
+    StripeService.charge.mockResolvedValue({ id: 'pi_123', status: 'requires_action' });
+    await expect(book(bookParams)).rejects.toMatchObject({ status: 402 });
+  });
 });

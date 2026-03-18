@@ -36,6 +36,15 @@ const tripData = () => ({
 });
 
 describe('Trip model', () => {
+  let otherUserId;
+
+  afterEach(async () => {
+    if (otherUserId) {
+      await db.query('DELETE FROM users WHERE id = $1', [otherUserId]);
+      otherUserId = null;
+    }
+  });
+
   it('creates a trip and returns the row', async () => {
     const trip = await Trip.create(tripData());
     expect(trip.id).toBeDefined();
@@ -61,12 +70,11 @@ describe('Trip model', () => {
   it('findByUserId does not return trips belonging to other users', async () => {
     const { rows } = await db.query(
       'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id',
-      ['other@test.com', '$2b$12$placeholder']
+      ['other-isolation@trip-model.test', '$2b$12$placeholder']
     );
-    const otherId = rows[0].id;
-    await Trip.create({ ...tripData(), userId: otherId, bookingRef: 'FB-OTHER-001' });
+    otherUserId = rows[0].id;
+    await Trip.create({ ...tripData(), userId: otherUserId, bookingRef: 'FB-OTHER-001' });
     const trips = await Trip.findByUserId(testUserId);
     expect(trips).toHaveLength(0);
-    await db.query('DELETE FROM users WHERE id = $1', [otherId]);
   });
 });
