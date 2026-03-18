@@ -8,11 +8,6 @@ afterEach(async () => {
   await db.query('DELETE FROM users');
 });
 
-afterAll(async () => {
-  await db.query('DELETE FROM refresh_tokens');
-  await db.query('DELETE FROM users');
-});
-
 describe('POST /auth/register', () => {
   const app = createApp();
 
