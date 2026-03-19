@@ -75,4 +75,25 @@ describe('ConfirmationScreen', () => {
     const { getByText } = render(<ConfirmationScreen />);
     expect(getByText('No booking found')).toBeTruthy();
   });
+
+  it('shows per-leg status for itinerary booking', () => {
+    mockGetBookingResult.mockReturnValue({
+      bookingRef: 'TS-123',
+      status: 'confirmed',
+      itinerary: {
+        id: 'uuid', booking_ref: 'TS-123', origin: 'BUD', destination: 'NCE',
+        depart_at: '2030-06-15T08:00:00Z', arrive_at: '2030-06-15T17:05:00Z',
+        total_price_eur: '81.00', status: 'confirmed',
+        legs: [
+          { id: '1', provider: 'flixbus', booking_ref: 'FB-1', origin: 'BUD', destination: 'VIE', depart_at: '2030-06-15T08:00:00Z', return_at: null, price_eur: '15.00', currency_display: 'EUR', status: 'confirmed', raw_ticket_url: null, created_at: '2026-03-18T10:00:00Z' },
+          { id: '2', provider: 'amadeus', booking_ref: 'AM-2', origin: 'VIE', destination: 'NCE', depart_at: '2030-06-15T12:00:00Z', return_at: null, price_eur: '62.00', currency_display: 'EUR', status: 'confirmed', raw_ticket_url: null, created_at: '2026-03-18T10:00:00Z' },
+        ],
+      },
+    });
+
+    const { getByText } = render(<ConfirmationScreen />);
+    expect(getByText('BUD → VIE')).toBeTruthy();
+    expect(getByText('VIE → NCE')).toBeTruthy();
+    expect(getByText('TS-123')).toBeTruthy();
+  });
 });
