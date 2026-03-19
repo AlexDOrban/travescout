@@ -11,12 +11,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { getResultById } from '../../src/stores/searchStore';
-
-const TRANSPORT_ICON: Record<string, string> = {
-  flight: '✈️',
-  bus: '🚌',
-  train: '🚆',
-};
+import { TRANSPORT_ICON } from '../../src/constants/transport';
+import { ColorPalette } from '../../src/constants/colors';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -102,7 +98,7 @@ function DetailRow({
 }: {
   label: string;
   value: string;
-  colors: any;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.detailRow}>

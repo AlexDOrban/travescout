@@ -3,12 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { RankedTrip } from '../types/trip';
-
-const TRANSPORT_ICON: Record<string, string> = {
-  flight: '✈️',
-  bus: '🚌',
-  train: '🚆',
-};
+import { TRANSPORT_ICON } from '../constants/transport';
 
 const TAG_COLORS: Record<string, string> = {
   CHEAPEST: '#22c55e',
