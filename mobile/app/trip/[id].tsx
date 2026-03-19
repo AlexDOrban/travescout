@@ -10,7 +10,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
-import { setCheckoutTrip } from '../../src/stores/checkoutStore';
+import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
+import type { Leg } from '../../src/types/itinerary';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import { ColorPalette } from '../../src/constants/colors';
 
@@ -89,6 +90,23 @@ export default function TripDetailScreen() {
       >
         <Text style={styles.buttonText}>Book Now</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        testID="add-connections-btn"
+        style={[styles.secondaryButton, { borderColor: colors.accent }]}
+        onPress={() => {
+          const leg: Leg = {
+            ...trip,
+            originName: trip.origin,
+            destinationName: trip.destination,
+          };
+          setCheckoutItinerary(leg, meta?.adults ?? 1);
+          router.push('/checkout/connections');
+        }}
+      >
+        <Text style={[styles.secondaryButtonText, { color: colors.accent }]}>
+          Add Connections
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -129,4 +147,6 @@ const styles = StyleSheet.create({
   },
   button: { margin: 16, borderRadius: 12, padding: 16, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  secondaryButton: { margin: 16, marginTop: 0, borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 2 },
+  secondaryButtonText: { fontSize: 18, fontWeight: '700' },
 });
