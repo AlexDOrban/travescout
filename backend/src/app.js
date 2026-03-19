@@ -8,6 +8,7 @@ const searchRouter = require('./routes/search');
 const bookingRouter = require('./routes/booking');
 const tripsRouter = require('./routes/trips');
 const itineraryBookingRoutes = require('./routes/itineraryBooking');
+const itinerariesRoutes = require('./routes/itineraries');
 
 function createApp() {
   const app = express();
@@ -20,6 +21,7 @@ function createApp() {
   app.use('/book', bookingRouter);
   app.use('/book/itinerary', itineraryBookingRoutes);
   app.use('/trips', tripsRouter);
+  app.use('/itineraries', itinerariesRoutes);
   app.use(errorHandler);
   return app;
 }
