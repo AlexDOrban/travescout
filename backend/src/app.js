@@ -7,6 +7,7 @@ const connectionSearchRouter = require('./routes/connectionSearch');
 const searchRouter = require('./routes/search');
 const bookingRouter = require('./routes/booking');
 const tripsRouter = require('./routes/trips');
+const itineraryBookingRoutes = require('./routes/itineraryBooking');
 
 function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ function createApp() {
   app.use('/search/connections', connectionSearchRouter);
   app.use('/search', searchRouter);
   app.use('/book', bookingRouter);
+  app.use('/book/itinerary', itineraryBookingRoutes);
   app.use('/trips', tripsRouter);
   app.use(errorHandler);
   return app;
