@@ -4,7 +4,6 @@ import * as authApi from '../api/auth';
 
 interface User {
   email: string;
-  token: string;
 }
 
 interface AuthContextValue {
@@ -24,24 +23,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Restore session from stored token + email
     Promise.all([getItem('accessToken'), getItem('userEmail')]).then(([token, email]) => {
-      if (token && email) setUser({ email, token });
+      if (token && email) setUser({ email });
       setLoading(false);
     });
   }, []);
 
   async function login(email: string, password: string): Promise<void> {
-    const data = await authApi.login(email, password);
-    setUser({ email, token: data.accessToken });
+    await authApi.login(email, password);
+    setUser({ email });
   }
 
   async function register(email: string, password: string): Promise<void> {
-    const data = await authApi.register(email, password);
-    setUser({ email, token: data.accessToken });
+    await authApi.register(email, password);
+    setUser({ email });
   }
 
   async function logout(): Promise<void> {
-    const refreshToken = (await getItem('refreshToken')) ?? '';
-    await authApi.logout(refreshToken);
+    try {
+      const refreshToken = (await getItem('refreshToken')) ?? '';
+      await authApi.logout(refreshToken);
+    } catch {
+      // Server logout is best-effort; always clear local session
+    }
     setUser(null);
   }
 
