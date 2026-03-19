@@ -78,7 +78,7 @@ export default function ConfirmationScreen() {
           style={[styles.button, { backgroundColor: colors.accent }]}
           onPress={() => {
             clearCheckout();
-            router.push('/(tabs)/trips');
+            router.replace('/(tabs)/trips');
           }}
         >
           <Text style={styles.buttonText}>View My Trips</Text>
@@ -89,7 +89,7 @@ export default function ConfirmationScreen() {
           style={[styles.secondaryButton, { borderColor: colors.accent }]}
           onPress={() => {
             clearCheckout();
-            router.push('/(tabs)/');
+            router.replace('/(tabs)/');
           }}
         >
           <Text style={[styles.secondaryButtonText, { color: colors.accent }]}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
@@ -26,12 +27,16 @@ export default function MyTripsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    getTrips()
-      .then(data => setTrips(data.trips))
-      .catch(e => setError(e.message || 'Failed to load trips'))
-      .finally(() => setLoading(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      setError('');
+      getTrips()
+        .then(data => setTrips(data.trips))
+        .catch(e => setError(e.message || 'Failed to load trips'))
+        .finally(() => setLoading(false));
+    }, []),
+  );
 
   if (loading) {
     return (
@@ -77,7 +82,7 @@ export default function MyTripsScreen() {
                     {format(parseFloat(item.price_eur))}
                   </Text>
                 </View>
-                <View style={styles.cardFooter}>
+                <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
                     {item.booking_ref}
                   </Text>
@@ -111,7 +116,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#333',
   },
   status: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 });

@@ -18,6 +18,10 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const React = require('react');
+    React.useEffect(() => { cb(); }, []);
+  },
 }));
 
 import React from 'react';

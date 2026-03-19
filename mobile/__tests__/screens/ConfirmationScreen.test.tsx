@@ -17,9 +17,9 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
   }),
 }));
 
-const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ replace: mockReplace }),
 }));
 
 import React from 'react';
@@ -67,7 +67,7 @@ describe('ConfirmationScreen', () => {
     const { getByTestId } = render(<ConfirmationScreen />);
     fireEvent.press(getByTestId('view-trips-btn'));
     expect(mockClearCheckout).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith('/(tabs)/trips');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/trips');
   });
 
   it('shows fallback when no booking result', () => {
