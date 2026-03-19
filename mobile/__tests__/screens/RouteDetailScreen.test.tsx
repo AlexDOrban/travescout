@@ -1,4 +1,5 @@
 jest.mock('../../src/stores/searchStore');
+jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
@@ -13,17 +14,21 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
     format: (n: number) => `€${n.toFixed(2)}`,
   }),
 }));
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'amadeus:1' }),
-  useRouter: () => ({ back: jest.fn() }),
+  useRouter: () => ({ back: jest.fn(), push: mockPush }),
 }));
 
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import TripDetailScreen from '../../app/trip/[id]';
-import { getResultById } from '../../src/stores/searchStore';
+import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
+import { setCheckoutTrip } from '../../src/stores/checkoutStore';
 
 const mockGetById = getResultById as jest.Mock;
+const mockGetSearchMeta = getSearchMeta as jest.Mock;
+const mockSetCheckoutTrip = setCheckoutTrip as jest.Mock;
 
 const MOCK_TRIP = {
   id: 'amadeus:1',
@@ -41,7 +46,10 @@ const MOCK_TRIP = {
   tags: ['CHEAPEST'],
 };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockGetSearchMeta.mockReturnValue({ adults: 1 });
+});
 
 describe('TripDetailScreen', () => {
   it('renders trip route and price', () => {
@@ -79,5 +87,13 @@ describe('TripDetailScreen', () => {
     mockGetById.mockReturnValue(MOCK_TRIP);
     const { getByTestId } = render(<TripDetailScreen />);
     expect(getByTestId('detail-provider').props.children).toBe('amadeus');
+  });
+
+  it('Book Now sets checkout trip and navigates to passengers', () => {
+    mockGetById.mockReturnValue(MOCK_TRIP);
+    const { getByTestId } = render(<TripDetailScreen />);
+    fireEvent.press(getByTestId('book-btn'));
+    expect(mockSetCheckoutTrip).toHaveBeenCalledWith(MOCK_TRIP, 1);
+    expect(mockPush).toHaveBeenCalledWith('/checkout/passengers');
   });
 });

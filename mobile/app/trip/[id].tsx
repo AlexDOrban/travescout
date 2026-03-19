@@ -5,12 +5,12 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
-import { getResultById } from '../../src/stores/searchStore';
+import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
+import { setCheckoutTrip } from '../../src/stores/checkoutStore';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import { ColorPalette } from '../../src/constants/colors';
 
@@ -20,6 +20,7 @@ export default function TripDetailScreen() {
   const { format } = useCurrency();
   const router = useRouter();
   const trip = getResultById(id ?? '');
+  const meta = getSearchMeta();
 
   if (!trip) {
     return (
@@ -82,7 +83,8 @@ export default function TripDetailScreen() {
         testID="book-btn"
         style={[styles.button, { backgroundColor: colors.accent }]}
         onPress={() => {
-          if (trip.deepLink) Linking.openURL(trip.deepLink);
+          setCheckoutTrip(trip, meta?.adults ?? 1);
+          router.push('/checkout/passengers');
         }}
       >
         <Text style={styles.buttonText}>Book Now</Text>
