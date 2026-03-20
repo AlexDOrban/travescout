@@ -32,8 +32,13 @@ export default function ResultsScreen() {
         return [...list].sort((a, b) => a.durationMins - b.durationMins);
       case 'departure':
         return [...list].sort((a, b) => a.departAt.localeCompare(b.departAt));
-      default: // smart — sort by composite score descending
-        return [...list].sort((a, b) => b.score - a.score);
+      default: // smart — flights first, then by score descending
+        return [...list].sort((a, b) => {
+          const aFlight = a.transportType === 'flight' ? 0 : 1;
+          const bFlight = b.transportType === 'flight' ? 0 : 1;
+          if (aFlight !== bFlight) return aFlight - bFlight;
+          return b.score - a.score;
+        });
     }
   }, [results, transport, sort]);
 
