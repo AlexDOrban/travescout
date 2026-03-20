@@ -15,16 +15,94 @@ import {
   getCheckoutTrip,
   getCheckoutAdults,
   getPassengers,
+  getCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
+import type { CheckoutItinerary, Connection } from '../../src/types/itinerary';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const { format } = useCurrency();
   const router = useRouter();
+  const itinerary = getCheckoutItinerary();
   const trip = getCheckoutTrip();
   const adults = getCheckoutAdults();
   const passengers = getPassengers();
 
+  // Multi-leg itinerary view
+  if (itinerary) {
+    const totalEur = itinerary.totalPriceEur * itinerary.adults;
+
+    return (
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppHeader title="Review Booking" />
+        <View style={styles.content}>
+          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
+
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text testID="itinerary-header" style={[styles.cardTitle, { color: colors.text }]}>
+              Your Route · {itinerary.legs.length} legs
+            </Text>
+
+            {itinerary.legs.map((leg, i) => (
+              <React.Fragment key={i}>
+                <View testID={`leg-row-${i}`} style={styles.legRow}>
+                  <Text style={styles.legIcon}>{TRANSPORT_ICON[leg.transportType] ?? '🚐'}</Text>
+                  <Text style={[styles.legRoute, { color: colors.text }]}>
+                    {leg.originName} → {leg.destinationName}
+                  </Text>
+                  <Text testID={`leg-price-${i}`} style={[styles.legPrice, { color: colors.cheapest }]}>
+                    {format(leg.priceEur)}
+                  </Text>
+                </View>
+
+                {i < itinerary.connections.length && (
+                  <View testID={`transfer-${i}`} style={styles.transferRow}>
+                    <Text style={{ color: colors.textSecondary }}>
+                      {'   '}⏳{' '}
+                      {itinerary.connections[i].transferMins >= 60
+                        ? `${Math.floor(itinerary.connections[i].transferMins / 60)}h ${itinerary.connections[i].transferMins % 60}m`
+                        : `${itinerary.connections[i].transferMins} min`}{' '}
+                      transfer
+                      {itinerary.connections[i].warning
+                        ? ` ⚠️ ${itinerary.connections[i].warning}`
+                        : ''}
+                    </Text>
+                  </View>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Passengers</Text>
+            {passengers.map((p, i) => (
+              <View key={i} style={styles.passengerRow}>
+                <Text style={{ color: colors.text }}>{p.name}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{p.email}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+            <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
+            <Text testID="total-price" style={[styles.totalPrice, { color: colors.cheapest }]}>
+              {format(totalEur)}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            testID="pay-btn"
+            style={[styles.button, { backgroundColor: colors.accent }]}
+            onPress={() => router.push('/checkout/payment')}
+          >
+            <Text style={styles.buttonText}>Proceed to Payment</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Single-trip fallback view
   if (!trip) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
@@ -106,4 +184,10 @@ const styles = StyleSheet.create({
   totalPrice: { fontSize: 24, fontWeight: '700' },
   button: { borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 12 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  // Multi-leg styles
+  legRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  legIcon: { fontSize: 20 },
+  legRoute: { flex: 1, fontSize: 15, fontWeight: '600' },
+  legPrice: { fontSize: 15, fontWeight: '600' },
+  transferRow: { paddingLeft: 8, paddingVertical: 2 },
 });

@@ -30,6 +30,9 @@ export interface BookedTrip {
   status: string;
   raw_ticket_url: string | null;
   created_at: string;
+  itinerary_id?: string;
+  leg_order?: number;
+  ticket_qr_data?: string;
 }
 
 export interface BookingResponse {

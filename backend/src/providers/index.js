@@ -37,4 +37,10 @@ async function fanOut(params) {
   return { trips, providersFailed };
 }
 
-module.exports = { fanOut, PROVIDERS };
+function getProvider(name) {
+  const entry = PROVIDERS.find(p => p.name === name);
+  if (!entry) throw Object.assign(new Error(`Unknown provider: ${name}`), { status: 400 });
+  return entry.provider;
+}
+
+module.exports = { fanOut, PROVIDERS, getProvider };

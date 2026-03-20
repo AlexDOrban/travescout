@@ -24,11 +24,12 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import TripDetailScreen from '../../app/trip/[id]';
 import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
-import { setCheckoutTrip } from '../../src/stores/checkoutStore';
+import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
 
 const mockGetById = getResultById as jest.Mock;
 const mockGetSearchMeta = getSearchMeta as jest.Mock;
 const mockSetCheckoutTrip = setCheckoutTrip as jest.Mock;
+const mockSetCheckoutItinerary = setCheckoutItinerary as jest.Mock;
 
 const MOCK_TRIP = {
   id: 'amadeus:1',
@@ -95,5 +96,21 @@ describe('TripDetailScreen', () => {
     fireEvent.press(getByTestId('book-btn'));
     expect(mockSetCheckoutTrip).toHaveBeenCalledWith(MOCK_TRIP, 1);
     expect(mockPush).toHaveBeenCalledWith('/checkout/passengers');
+  });
+
+  it('navigates to connections screen when Add Connections pressed', () => {
+    mockGetById.mockReturnValue(MOCK_TRIP);
+    const { getByTestId } = render(<TripDetailScreen />);
+    const btn = getByTestId('add-connections-btn');
+    fireEvent.press(btn);
+    expect(mockSetCheckoutItinerary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...MOCK_TRIP,
+        originName: MOCK_TRIP.origin,
+        destinationName: MOCK_TRIP.destination,
+      }),
+      1,
+    );
+    expect(mockPush).toHaveBeenCalledWith('/checkout/connections');
   });
 });

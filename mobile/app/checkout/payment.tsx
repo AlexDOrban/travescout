@@ -15,10 +15,12 @@ import { AppHeader } from '../../src/components/AppHeader';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
+  getCheckoutItinerary,
   getPassengers,
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { book } from '../../src/api/booking';
+import { bookItinerary } from '../../src/api/itinerary';
 
 export default function PaymentScreen() {
   const { colors } = useTheme();
@@ -27,13 +29,14 @@ export default function PaymentScreen() {
   const trip = getCheckoutTrip();
   const adults = getCheckoutAdults();
   const passengers = getPassengers();
+  const itinerary = getCheckoutItinerary();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
 
-  if (!trip) {
+  if (!trip && !itinerary) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
@@ -41,25 +44,38 @@ export default function PaymentScreen() {
     );
   }
 
-  const totalEur = trip.priceEur * adults;
+  const totalEur = itinerary
+    ? itinerary.totalPriceEur * itinerary.adults
+    : trip!.priceEur * adults;
 
   async function handlePay() {
     setError('');
     setLoading(true);
     try {
-      const result = await book({
-        trip: {
-          provider: trip.provider,
-          origin: trip.origin,
-          destination: trip.destination,
-          departAt: trip.departAt,
-          arriveAt: trip.arriveAt,
-          priceEur: trip.priceEur,
-          deepLink: trip.deepLink,
-        },
-        passengers,
-        paymentMethodId: 'pm_card_visa', // Stripe test token
-      });
+      let result;
+      if (itinerary) {
+        result = await bookItinerary({
+          legs: itinerary.legs,
+          passengers,
+          paymentMethodId: 'pm_card_visa',
+          origin: itinerary.legs[0].origin,
+          destination: itinerary.legs[itinerary.legs.length - 1].destination,
+        });
+      } else {
+        result = await book({
+          trip: {
+            provider: trip!.provider,
+            origin: trip!.origin,
+            destination: trip!.destination,
+            departAt: trip!.departAt,
+            arriveAt: trip!.arriveAt,
+            priceEur: trip!.priceEur,
+            deepLink: trip!.deepLink,
+          },
+          passengers,
+          paymentMethodId: 'pm_card_visa', // Stripe test token
+        });
+      }
       setBookingResult(result);
       router.push('/confirmation');
     } catch (e: any) {

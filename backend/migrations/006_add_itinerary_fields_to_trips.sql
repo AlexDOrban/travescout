@@ -1,0 +1,5 @@
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS itinerary_id UUID REFERENCES itineraries(id) ON DELETE SET NULL;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS leg_order SMALLINT DEFAULT 0;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS ticket_qr_data TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_trips_itinerary_id ON trips(itinerary_id);

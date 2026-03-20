@@ -35,4 +35,10 @@ export const CITIES: City[] = [
   { name: 'Florence', code: 'FLR', country: 'IT' },
   { name: 'Oslo', code: 'OSL', country: 'NO' },
   { name: 'Helsinki', code: 'HEL', country: 'FI' },
+  { name: 'Bucharest', code: 'BUH', country: 'RO' },
+  { name: 'Sofia', code: 'SOF', country: 'BG' },
+  { name: 'Belgrade', code: 'BEG', country: 'RS' },
+  { name: 'Zagreb', code: 'ZAG', country: 'HR' },
+  { name: 'Bratislava', code: 'BTS', country: 'SK' },
+  { name: 'Ljubljana', code: 'LJU', country: 'SI' },
 ];
