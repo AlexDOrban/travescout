@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -13,6 +14,8 @@ interface Props {
 export function AppHeader({ title = 'TraveScout', showBack = false }: Props) {
   const { isDark, colors, toggle } = useTheme();
   const { currency, currencies, setCurrency } = useCurrency();
+  // Keep the header clear of the status bar (signal/battery/carrier).
+  const insets = useSafeAreaInsets();
 
   function handleCurrencyPress() {
     const idx = currencies.findIndex((c: Currency) => c.code === currency.code);
@@ -21,7 +24,12 @@ export function AppHeader({ title = 'TraveScout', showBack = false }: Props) {
   }
 
   return (
-    <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: colors.card, borderBottomColor: colors.border, paddingTop: insets.top + 12 },
+      ]}
+    >
       <View style={styles.leading}>
         {showBack && router.canGoBack() && (
           <TouchableOpacity
