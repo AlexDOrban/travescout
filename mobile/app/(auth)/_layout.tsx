@@ -7,6 +7,6 @@ import { useAuth } from '../../src/contexts/AuthContext';
 export default function AuthLayout() {
   const { user, loading } = useAuth();
   if (loading) return <View style={{ flex: 1 }}><ActivityIndicator /></View>;
-  if (user) return <Redirect href="/(tabs)/" />;
+  if (user) return <Redirect href="/(tabs)" />;
   return <Stack screenOptions={{ headerShown: false }} />;
 }

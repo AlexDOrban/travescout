@@ -35,6 +35,7 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 
 import React from 'react';
@@ -80,8 +81,8 @@ describe('SearchScreen', () => {
     fireEvent.press(getByTestId('from-city'));
     fireEvent.press(getByTestId('to-city'));
 
-    // Enter departure date
-    fireEvent.changeText(getByTestId('depart-date'), '2026-04-15');
+    // Enter departure date (must be in the future — past dates are rejected)
+    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
 
     // Search
     fireEvent.press(getByTestId('search-btn'));
@@ -90,7 +91,7 @@ describe('SearchScreen', () => {
       expect(mockSearch).toHaveBeenCalledWith({
         from: 'LON',
         to: 'PAR',
-        departDate: '2026-04-15',
+        departDate: '2030-04-15',
         returnDate: undefined,
         adults: 1,
       });
@@ -99,15 +100,56 @@ describe('SearchScreen', () => {
     });
   });
 
-  it('shows error on invalid date format', () => {
+  it('shows error on incomplete date format', () => {
     const { getByTestId } = render(<SearchScreen />);
 
     fireEvent.press(getByTestId('from-city'));
     fireEvent.press(getByTestId('to-city'));
-    fireEvent.changeText(getByTestId('depart-date'), 'not-a-date');
+    // Input auto-formats digits; an incomplete date fails format validation
+    fireEvent.changeText(getByTestId('depart-date'), '2030-04');
     fireEvent.press(getByTestId('search-btn'));
 
-    expect(getByTestId('error').props.children).toBe('Date must be YYYY-MM-DD');
+    expect(getByTestId('error').props.children).toBe('Departure date must be YYYY-MM-DD');
+  });
+
+  it('shows error on invalid calendar date', () => {
+    const { getByTestId } = render(<SearchScreen />);
+
+    fireEvent.press(getByTestId('from-city'));
+    fireEvent.press(getByTestId('to-city'));
+    fireEvent.changeText(getByTestId('depart-date'), '2030-02-30');
+    fireEvent.press(getByTestId('search-btn'));
+
+    expect(getByTestId('error').props.children).toBe(
+      'Departure date is not a valid calendar date',
+    );
+  });
+
+  it('shows error on past departure date', () => {
+    const { getByTestId } = render(<SearchScreen />);
+
+    fireEvent.press(getByTestId('from-city'));
+    fireEvent.press(getByTestId('to-city'));
+    fireEvent.changeText(getByTestId('depart-date'), '2020-04-15');
+    fireEvent.press(getByTestId('search-btn'));
+
+    expect(getByTestId('error').props.children).toBe(
+      'Departure date cannot be in the past',
+    );
+  });
+
+  it('shows error when return date is before departure', () => {
+    const { getByTestId } = render(<SearchScreen />);
+
+    fireEvent.press(getByTestId('from-city'));
+    fireEvent.press(getByTestId('to-city'));
+    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
+    fireEvent.changeText(getByTestId('return-date'), '2030-04-10');
+    fireEvent.press(getByTestId('search-btn'));
+
+    expect(getByTestId('error').props.children).toBe(
+      'Return date must be on or after departure',
+    );
   });
 
   it('shows error when search API fails', async () => {
@@ -117,7 +159,7 @@ describe('SearchScreen', () => {
 
     fireEvent.press(getByTestId('from-city'));
     fireEvent.press(getByTestId('to-city'));
-    fireEvent.changeText(getByTestId('depart-date'), '2026-04-15');
+    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
     fireEvent.press(getByTestId('search-btn'));
 
     await waitFor(() => {

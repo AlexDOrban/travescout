@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AppHeader } from '../../src/components/AppHeader';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
@@ -43,6 +44,7 @@ export default function TripDetailScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader title="Trip Details" showBack />
       <View style={[styles.header, { backgroundColor: colors.card }]}>
         <Text style={{ fontSize: 40 }}>
           {TRANSPORT_ICON[trip.transportType] ?? '🚐'}

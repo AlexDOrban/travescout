@@ -14,6 +14,7 @@ import { AppHeader } from '../../src/components/AppHeader';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import {
   getCheckoutItinerary,
+  getCheckoutMainLeg,
   setCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
@@ -31,7 +32,9 @@ export default function ConnectionsScreen() {
 
   const itinerary = getCheckoutItinerary();
   const searchMeta = getSearchMeta();
-  const mainLeg = itinerary?.legs[0] ?? null;
+  // Never derive the main leg from legs[0]: once connections are added the
+  // first leg is the departure feeder, not the main leg.
+  const mainLeg = getCheckoutMainLeg();
   const adults = itinerary?.adults ?? 1;
 
   const originCityCode = searchMeta?.from ?? '';
@@ -53,97 +56,54 @@ export default function ConnectionsScreen() {
 
   const [loadingDeparture, setLoadingDeparture] = useState(false);
   const [loadingArrival, setLoadingArrival] = useState(false);
-  const [error, setError] = useState('');
+  const [departureError, setDepartureError] = useState('');
+  const [arrivalError, setArrivalError] = useState('');
+
+  function fetchDeparture() {
+    if (!mainLeg || !showDeparture) return;
+    setDepartureError('');
+    setLoadingDeparture(true);
+    searchConnections({
+      hub: mainLeg.origin,
+      cityCode: originCityCode,
+      direction: 'to',
+      dateTime: mainLeg.departAt,
+      adults,
+    })
+      // Drop options that don't actually connect (negative buffer).
+      .then(res => setDepartureOptions(
+        res.connections.filter(
+          leg => minutesBefore(leg.arriveAt, mainLeg.departAt) > 0,
+        ),
+      ))
+      .catch(err => setDepartureError(err.message || 'Failed to load connections'))
+      .finally(() => setLoadingDeparture(false));
+  }
+
+  function fetchArrival() {
+    if (!mainLeg || !showArrival) return;
+    setArrivalError('');
+    setLoadingArrival(true);
+    searchConnections({
+      hub: mainLeg.destination,
+      cityCode: destCityCode,
+      direction: 'from',
+      dateTime: mainLeg.arriveAt,
+      adults,
+    })
+      .then(res => setArrivalOptions(
+        res.connections.filter(
+          leg => minutesAfter(mainLeg.arriveAt, leg.departAt) > 0,
+        ),
+      ))
+      .catch(err => setArrivalError(err.message || 'Failed to load connections'))
+      .finally(() => setLoadingArrival(false));
+  }
 
   useEffect(() => {
-    if (!mainLeg) return;
-
-    async function fetchConnections() {
-      setError('');
-      const promises: Promise<void>[] = [];
-
-      if (showDeparture) {
-        setLoadingDeparture(true);
-        promises.push(
-          searchConnections({
-            hub: mainLeg!.origin,
-            cityCode: originCityCode,
-            direction: 'to',
-            dateTime: mainLeg!.departAt,
-            adults,
-          })
-            .then(res => {
-              setDepartureOptions(res.connections);
-            })
-            .catch(err => {
-              setError(err.message || 'Failed to load connections');
-            })
-            .finally(() => setLoadingDeparture(false)),
-        );
-      }
-
-      if (showArrival) {
-        setLoadingArrival(true);
-        promises.push(
-          searchConnections({
-            hub: mainLeg!.destination,
-            cityCode: destCityCode,
-            direction: 'from',
-            dateTime: mainLeg!.arriveAt,
-            adults,
-          })
-            .then(res => {
-              setArrivalOptions(res.connections);
-            })
-            .catch(err => {
-              setError(err.message || 'Failed to load connections');
-            })
-            .finally(() => setLoadingArrival(false)),
-        );
-      }
-
-      await Promise.all(promises);
-    }
-
-    fetchConnections();
+    fetchDeparture();
+    fetchArrival();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleRetry() {
-    setError('');
-    setLoadingDeparture(false);
-    setLoadingArrival(false);
-    // Re-trigger by toggling state — simplest approach: re-mount would be ideal
-    // Instead, just call fetch again inline
-    if (!mainLeg) return;
-
-    if (showDeparture) {
-      setLoadingDeparture(true);
-      searchConnections({
-        hub: mainLeg.origin,
-        cityCode: originCityCode,
-        direction: 'to',
-        dateTime: mainLeg.departAt,
-        adults,
-      })
-        .then(res => setDepartureOptions(res.connections))
-        .catch(err => setError(err.message || 'Failed to load connections'))
-        .finally(() => setLoadingDeparture(false));
-    }
-
-    if (showArrival) {
-      setLoadingArrival(true);
-      searchConnections({
-        hub: mainLeg.destination,
-        cityCode: destCityCode,
-        direction: 'from',
-        dateTime: mainLeg.arriveAt,
-        adults,
-      })
-        .then(res => setArrivalOptions(res.connections))
-        .catch(err => setError(err.message || 'Failed to load connections'))
-        .finally(() => setLoadingArrival(false));
-    }
-  }
 
   function handleContinue() {
     if (!mainLeg) return;
@@ -182,7 +142,7 @@ export default function ConnectionsScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Add Connections" />
+      <AppHeader title="Add Connections" showBack />
       <View style={styles.content}>
 
         {!needsAny && (
@@ -194,19 +154,6 @@ export default function ConnectionsScreen() {
           </View>
         )}
 
-        {error ? (
-          <View testID="error-container">
-            <Text testID="error" style={{ color: colors.error, marginBottom: 8 }}>{error}</Text>
-            <TouchableOpacity
-              testID="retry-btn"
-              style={[styles.retryButton, { borderColor: colors.accent }]}
-              onPress={handleRetry}
-            >
-              <Text style={{ color: colors.accent }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
         {showDeparture && (
           <View>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -215,6 +162,21 @@ export default function ConnectionsScreen() {
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Bus & train options from {searchMeta?.from}
             </Text>
+
+            {departureError ? (
+              <View testID="departure-error-container">
+                <Text testID="departure-error" style={{ color: colors.error, marginBottom: 8 }}>
+                  {departureError}
+                </Text>
+                <TouchableOpacity
+                  testID="departure-retry-btn"
+                  style={[styles.retryButton, { borderColor: colors.accent }]}
+                  onPress={fetchDeparture}
+                >
+                  <Text style={{ color: colors.accent }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {loadingDeparture ? (
               <ActivityIndicator testID="departure-loading" color={colors.accent} style={styles.spinner} />
@@ -289,6 +251,21 @@ export default function ConnectionsScreen() {
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Bus & train options to {searchMeta?.to}
             </Text>
+
+            {arrivalError ? (
+              <View testID="arrival-error-container">
+                <Text testID="arrival-error" style={{ color: colors.error, marginBottom: 8 }}>
+                  {arrivalError}
+                </Text>
+                <TouchableOpacity
+                  testID="arrival-retry-btn"
+                  style={[styles.retryButton, { borderColor: colors.accent }]}
+                  onPress={fetchArrival}
+                >
+                  <Text style={{ color: colors.accent }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {loadingArrival ? (
               <ActivityIndicator testID="arrival-loading" color={colors.accent} style={styles.spinner} />

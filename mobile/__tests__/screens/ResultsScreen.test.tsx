@@ -18,7 +18,8 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
   }),
 }));
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 jest.mock('../../src/components/TripCard', () => ({
   TripCard: ({ testID, onPress }: any) => {
@@ -117,5 +118,16 @@ describe('ResultsScreen', () => {
   it('displays route in header from meta', () => {
     const { getByText } = render(<ResultsScreen />);
     expect(getByText('LON → PAR')).toBeTruthy();
+  });
+
+  it('shows a banner when some providers failed', () => {
+    mockGetMeta.mockReturnValue({ ...MOCK_META, providersFailed: ['rail'] });
+    const { getByTestId } = render(<ResultsScreen />);
+    expect(getByTestId('providers-failed-banner')).toBeTruthy();
+  });
+
+  it('hides the providers-failed banner when all providers responded', () => {
+    const { queryByTestId } = render(<ResultsScreen />);
+    expect(queryByTestId('providers-failed-banner')).toBeNull();
   });
 });

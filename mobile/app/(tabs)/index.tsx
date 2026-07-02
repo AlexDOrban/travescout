@@ -34,13 +34,32 @@ export default function SearchScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  function validateDate(value: string, label: string): string {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${label} must be YYYY-MM-DD`;
+    const [y, m, d] = value.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+      return `${label} is not a valid calendar date`;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) return `${label} cannot be in the past`;
+    return '';
+  }
+
   async function handleSearch() {
     setError('');
     if (!fromCity) return setError('Select a departure city');
     if (!toCity) return setError('Select a destination city');
+    if (fromCity.code === toCity.code) return setError('Departure and destination must differ');
     if (!departDate) return setError('Enter a departure date');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(departDate))
-      return setError('Date must be YYYY-MM-DD');
+    const departError = validateDate(departDate, 'Departure date');
+    if (departError) return setError(departError);
+    if (returnDate) {
+      const returnError = validateDate(returnDate, 'Return date');
+      if (returnError) return setError(returnError);
+      if (returnDate < departDate) return setError('Return date must be on or after departure');
+    }
 
     setLoading(true);
     try {
@@ -61,19 +80,24 @@ export default function SearchScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <AppHeader />
       <View style={styles.form}>
         <CityAutocomplete
           label="From"
           value=""
           onSelect={setFromCity}
+          onClear={() => setFromCity(null)}
           testID="from-city"
         />
         <CityAutocomplete
           label="To"
           value=""
           onSelect={setToCity}
+          onClear={() => setToCity(null)}
           testID="to-city"
         />
 

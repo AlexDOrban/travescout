@@ -30,11 +30,12 @@ export default function ReviewScreen() {
 
   // Multi-leg itinerary view
   if (itinerary) {
-    const totalEur = itinerary.totalPriceEur * itinerary.adults;
+    // Leg prices already cover the whole party — this is what gets charged.
+    const totalEur = itinerary.totalPriceEur;
 
     return (
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppHeader title="Review Booking" />
+        <AppHeader title="Review Booking" showBack />
         <View style={styles.content}>
           <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
 
@@ -107,17 +108,21 @@ export default function ReviewScreen() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)')}>
+          <Text style={{ color: colors.accent, marginTop: 12 }}>Back to Search</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const totalEur = trip.priceEur * adults;
+  // The provider price already covers all travellers from the search.
+  const totalEur = trip.priceEur;
   const hours = Math.floor(trip.durationMins / 60);
   const mins = trip.durationMins % 60;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Review Booking" />
+      <AppHeader title="Review Booking" showBack />
       <View style={styles.content}>
         <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
 
@@ -136,7 +141,7 @@ export default function ReviewScreen() {
             {trip.provider}
           </Text>
           <Text style={[styles.price, { color: colors.cheapest }]}>
-            {format(trip.priceEur)} × {adults}
+            {format(trip.priceEur)} for {adults} {adults === 1 ? 'traveller' : 'travellers'}
           </Text>
         </View>
 

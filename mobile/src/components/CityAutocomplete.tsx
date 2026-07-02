@@ -7,10 +7,12 @@ interface Props {
   label: string;
   value: string;
   onSelect: (city: City) => void;
+  /** Called when the user edits the text after a selection, invalidating it. */
+  onClear?: () => void;
   testID?: string;
 }
 
-export function CityAutocomplete({ label, value, onSelect, testID }: Props) {
+export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Props) {
   const { colors } = useTheme();
   const [query, setQuery] = useState(value);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -26,7 +28,10 @@ export function CityAutocomplete({ label, value, onSelect, testID }: Props) {
   const handleChangeText = useCallback((text: string) => {
     setQuery(text);
     setShowDropdown(true);
-  }, []);
+    // Typing invalidates any previously selected city; otherwise the search
+    // silently uses the old selection while the input shows new text.
+    onClear?.();
+  }, [onClear]);
 
   const handleSelect = useCallback(
     (city: City) => {
@@ -51,6 +56,13 @@ export function CityAutocomplete({ label, value, onSelect, testID }: Props) {
         placeholder="City or code"
         placeholderTextColor={colors.textSecondary}
       />
+      {showDropdown && query.length >= 1 && filtered.length === 0 && (
+        <View style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.option, { borderBottomColor: colors.border }]}>
+            <Text style={{ color: colors.textSecondary }}>No matching cities</Text>
+          </View>
+        </View>
+      )}
       {showDropdown && filtered.length > 0 && (
         <View
           testID={`${testID}-dropdown`}

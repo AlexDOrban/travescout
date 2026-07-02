@@ -1,4 +1,5 @@
 jest.mock('../../src/stores/checkoutStore');
+jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/api/booking');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
@@ -19,8 +20,10 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn() }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 
 import React from 'react';
@@ -39,6 +42,12 @@ const mockGetAdults = getCheckoutAdults as jest.Mock;
 const mockGetPassengers = getPassengers as jest.Mock;
 const mockSetBookingResult = setBookingResult as jest.Mock;
 const mockBook = book as jest.Mock;
+
+function fillValidCard(getByTestId: (id: string) => any) {
+  fireEvent.changeText(getByTestId('card-number'), '4242424242424242');
+  fireEvent.changeText(getByTestId('card-expiry'), '12/30');
+  fireEvent.changeText(getByTestId('card-cvc'), '123');
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -76,31 +85,44 @@ describe('PaymentScreen', () => {
     mockBook.mockResolvedValue(bookingResponse);
 
     const { getByTestId } = render(<PaymentScreen />);
+    fillValidCard(getByTestId);
     fireEvent.press(getByTestId('pay-btn'));
 
     await waitFor(() => {
-      expect(mockBook).toHaveBeenCalledWith({
-        trip: {
-          provider: 'amadeus',
-          origin: 'LON',
-          destination: 'PAR',
-          departAt: '2026-04-15T08:00:00Z',
-          arriveAt: '2026-04-15T10:15:00Z',
-          priceEur: 42.5,
-          deepLink: 'https://example.com',
-        },
-        passengers: [{ name: 'John Doe', email: 'john@test.com' }],
-        paymentMethodId: 'pm_card_visa',
-      });
+      expect(mockBook).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trip: {
+            provider: 'amadeus',
+            origin: 'LON',
+            destination: 'PAR',
+            departAt: '2026-04-15T08:00:00Z',
+            arriveAt: '2026-04-15T10:15:00Z',
+            priceEur: 42.5,
+            deepLink: 'https://example.com',
+          },
+          passengers: [{ name: 'John Doe', email: 'john@test.com' }],
+          paymentMethodId: 'pm_card_visa',
+          idempotencyKey: expect.any(String),
+        }),
+      );
       expect(mockSetBookingResult).toHaveBeenCalledWith(bookingResponse);
-      expect(mockPush).toHaveBeenCalledWith('/confirmation');
+      expect(mockReplace).toHaveBeenCalledWith('/confirmation');
     });
+  });
+
+  it('shows validation error and skips booking when card details are invalid', () => {
+    const { getByTestId } = render(<PaymentScreen />);
+    fireEvent.press(getByTestId('pay-btn'));
+
+    expect(getByTestId('error').props.children).toBe('Enter a valid card number');
+    expect(mockBook).not.toHaveBeenCalled();
   });
 
   it('shows error when booking fails', async () => {
     mockBook.mockRejectedValue(new Error('Payment failed'));
 
     const { getByTestId } = render(<PaymentScreen />);
+    fillValidCard(getByTestId);
     fireEvent.press(getByTestId('pay-btn'));
 
     await waitFor(() => {

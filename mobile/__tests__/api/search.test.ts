@@ -14,7 +14,7 @@ describe('search', () => {
     mockGet.mockResolvedValue({ results: [], meta: {} });
     await search({ from: 'LON', to: 'PAR', departDate: '2026-04-15' });
     expect(mockGet).toHaveBeenCalledWith(
-      '/search?from=LON&to=PAR&departDate=2026-04-15',
+      '/search?from=LON&to=PAR&departDate=2026-04-15&adults=1',
     );
   });
 
@@ -32,11 +32,11 @@ describe('search', () => {
     );
   });
 
-  it('omits adults when value is 1 (the default)', async () => {
+  it('always includes adults, even when value is 1 (the default)', async () => {
     mockGet.mockResolvedValue({ results: [], meta: {} });
     await search({ from: 'LON', to: 'PAR', departDate: '2026-04-15', adults: 1 });
     const url = mockGet.mock.calls[0][0] as string;
-    expect(url).not.toContain('adults');
+    expect(url).toContain('adults=1');
   });
 
   it('returns the search response', async () => {

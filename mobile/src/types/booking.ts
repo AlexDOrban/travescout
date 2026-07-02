@@ -15,6 +15,8 @@ export interface BookingRequest {
   };
   passengers: Passenger[];
   paymentMethodId: string;
+  /** Client-generated key so a retried request can't double-charge. */
+  idempotencyKey?: string;
 }
 
 export interface BookedTrip {

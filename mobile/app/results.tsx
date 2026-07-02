@@ -44,7 +44,17 @@ export default function ResultsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title={meta ? `${meta.from} → ${meta.to}` : 'Results'} />
+      <AppHeader title={meta ? `${meta.from} → ${meta.to}` : 'Results'} showBack />
+      {meta && meta.providersFailed.length > 0 && (
+        <View
+          testID="providers-failed-banner"
+          style={[styles.banner, { backgroundColor: colors.error + '22', borderColor: colors.error }]}
+        >
+          <Text style={{ color: colors.error, fontSize: 13 }}>
+            Some providers didn't respond ({meta.providersFailed.join(', ')}) — results may be incomplete.
+          </Text>
+        </View>
+      )}
       <View style={styles.filters}>
         <FilterChips
           transport={transport}
@@ -83,6 +93,7 @@ export default function ResultsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  banner: { borderWidth: 1, borderRadius: 8, padding: 10, marginHorizontal: 16, marginTop: 12 },
   filters: { padding: 16 },
   list: { padding: 16, paddingTop: 0 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },

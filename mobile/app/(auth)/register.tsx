@@ -20,6 +20,10 @@ export default function RegisterScreen() {
       setError('Email and password are required');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email address');
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
       return;

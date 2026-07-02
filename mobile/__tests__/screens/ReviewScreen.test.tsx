@@ -20,6 +20,7 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 
 import React from 'react';
@@ -61,15 +62,16 @@ describe('ReviewScreen', () => {
     expect(getByText('john@test.com')).toBeTruthy();
   });
 
-  it('displays total price for multiple passengers', () => {
+  it('displays trip price as total without multiplying by passengers', () => {
     mockGetAdults.mockReturnValue(2);
     mockGetPassengers.mockReturnValue([
       { name: 'John', email: 'j@b.com' },
       { name: 'Jane', email: 'ja@b.com' },
     ]);
-    const { getByTestId } = render(<ReviewScreen />);
-    // 42.50 * 2 = 85.00
-    expect(getByTestId('total-price').props.children).toBe('€85.00');
+    const { getByTestId, getByText } = render(<ReviewScreen />);
+    // Provider price already covers the whole party — no client-side multiplication.
+    expect(getByTestId('total-price').props.children).toBe('€42.50');
+    expect(getByText('€42.50 for 2 travellers')).toBeTruthy();
   });
 
   it('navigates to payment on confirm', () => {

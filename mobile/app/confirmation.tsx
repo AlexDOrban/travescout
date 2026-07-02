@@ -23,6 +23,9 @@ export default function ConfirmationScreen() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.textSecondary }}>No booking found</Text>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)')}>
+          <Text style={{ color: colors.accent, marginTop: 12 }}>Back to Search</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -36,7 +39,7 @@ export default function ConfirmationScreen() {
 
   const handleBackToSearch = () => {
     clearCheckout();
-    router.replace('/(tabs)/');
+    router.replace('/(tabs)');
   };
 
   if (isItinerary) {

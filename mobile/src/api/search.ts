@@ -8,7 +8,7 @@ export async function search(params: SearchParams): Promise<SearchResponse> {
     departDate: params.departDate,
   });
   if (params.returnDate) query.set('returnDate', params.returnDate);
-  if (params.adults !== undefined && params.adults > 1) query.set('adults', String(params.adults));
+  query.set('adults', String(params.adults ?? 1));
 
   return api.get<SearchResponse>(`/search?${query.toString()}`);
 }

@@ -21,6 +21,7 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 
 jest.mock('../../src/api/itinerary');
@@ -31,6 +32,7 @@ import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ConnectionsScreen from '../../app/checkout/connections';
 import {
   getCheckoutItinerary,
+  getCheckoutMainLeg,
   setCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
@@ -41,6 +43,7 @@ import {
 } from '../../src/utils/connections';
 
 const mockGetCheckoutItinerary = getCheckoutItinerary as jest.Mock;
+const mockGetCheckoutMainLeg = getCheckoutMainLeg as jest.Mock;
 const mockSetCheckoutItinerary = setCheckoutItinerary as jest.Mock;
 const mockGetSearchMeta = getSearchMeta as jest.Mock;
 const mockSearchConnections = searchConnections as jest.Mock;
@@ -114,6 +117,8 @@ const MOCK_ARRIVAL_CONNECTION = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetCheckoutItinerary.mockReturnValue(MOCK_ITINERARY);
+  // setCheckoutItinerary records the main leg; the screen reads it back here.
+  mockGetCheckoutMainLeg.mockReturnValue(MOCK_MAIN_LEG);
   mockGetSearchMeta.mockReturnValue(MOCK_SEARCH_META);
   mockNeedsDeparture.mockReturnValue(false);
   mockNeedsArrival.mockReturnValue(false);
@@ -178,16 +183,28 @@ describe('ConnectionsScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/checkout/passengers');
   });
 
-  it('shows error on API failure with retry button', async () => {
+  it('shows per-section error on API failure with retry button', async () => {
     mockNeedsDeparture.mockReturnValue(true);
     mockSearchConnections.mockRejectedValue(new Error('Network error'));
 
     const { getByTestId, getByText } = render(<ConnectionsScreen />);
 
     await waitFor(() => {
-      expect(getByTestId('error')).toBeTruthy();
+      expect(getByTestId('departure-error')).toBeTruthy();
       expect(getByText('Network error')).toBeTruthy();
-      expect(getByTestId('retry-btn')).toBeTruthy();
+      expect(getByTestId('departure-retry-btn')).toBeTruthy();
+    });
+  });
+
+  it('shows arrival-section error when arrival fetch fails', async () => {
+    mockNeedsArrival.mockReturnValue(true);
+    mockSearchConnections.mockRejectedValue(new Error('Network error'));
+
+    const { getByTestId } = render(<ConnectionsScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('arrival-error')).toBeTruthy();
+      expect(getByTestId('arrival-retry-btn')).toBeTruthy();
     });
   });
 
@@ -266,13 +283,34 @@ describe('ConnectionsScreen', () => {
     const { getByTestId } = render(<ConnectionsScreen />);
 
     await waitFor(() => {
-      expect(getByTestId('retry-btn')).toBeTruthy();
+      expect(getByTestId('departure-retry-btn')).toBeTruthy();
     });
 
-    fireEvent.press(getByTestId('retry-btn'));
+    fireEvent.press(getByTestId('departure-retry-btn'));
 
     await waitFor(() => {
       expect(getByTestId(`departure-option-${MOCK_DEPARTURE_CONNECTION.id}`)).toBeTruthy();
     });
+  });
+
+  it('filters out departure options that arrive after the main leg departs', async () => {
+    mockNeedsDeparture.mockReturnValue(true);
+    const tooLate = {
+      ...MOCK_DEPARTURE_CONNECTION,
+      id: 'bus:dep:late',
+      departAt: '2026-04-15T10:30:00Z',
+      arriveAt: '2026-04-15T11:00:00Z', // after main leg departs at 10:00
+    };
+    mockSearchConnections.mockResolvedValue({
+      connections: [MOCK_DEPARTURE_CONNECTION, tooLate],
+      meta: {},
+    });
+
+    const { getByTestId, queryByTestId } = render(<ConnectionsScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId(`departure-option-${MOCK_DEPARTURE_CONNECTION.id}`)).toBeTruthy();
+    });
+    expect(queryByTestId('departure-option-bus:dep:late')).toBeNull();
   });
 });

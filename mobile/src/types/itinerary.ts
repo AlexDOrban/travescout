@@ -36,6 +36,8 @@ export interface ItineraryBookingRequest {
   paymentMethodId: string;
   origin: string;
   destination: string;
+  /** Client-generated key so a retried request can't double-charge. */
+  idempotencyKey?: string;
 }
 
 export interface BookedItinerary {

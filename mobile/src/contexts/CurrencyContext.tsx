@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getItem, setItem } from '../api/storage';
 
 export interface Currency {
   code: 'EUR' | 'USD' | 'GBP';
@@ -26,7 +27,7 @@ interface CurrencyContextValue {
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrency] = useState<Currency>(CURRENCIES[0]);
+  const [currency, setCurrencyState] = useState<Currency>(CURRENCIES[0]);
   const [rates, setRates] = useState<Record<string, number>>(FALLBACK_RATES);
 
   useEffect(() => {
@@ -34,7 +35,19 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       .then(r => r.json())
       .then(data => setRates({ EUR: 1, ...data.rates }))
       .catch(() => {}); // keep fallback on network error
+
+    getItem('currencyPreference')
+      .then(stored => {
+        const match = CURRENCIES.find(c => c.code === stored);
+        if (match) setCurrencyState(match);
+      })
+      .catch(() => {});
   }, []);
+
+  function setCurrency(c: Currency): void {
+    setCurrencyState(c);
+    setItem('currencyPreference', c.code).catch(() => {});
+  }
 
   function convert(amountEur: number): number {
     return Math.round(amountEur * (rates[currency.code] ?? 1) * 100) / 100;

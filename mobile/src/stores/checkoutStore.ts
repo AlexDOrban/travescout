@@ -8,12 +8,17 @@ let _adults: number = 1;
 let _passengers: Passenger[] = [];
 let _bookingResult: BookingResponse | ItineraryBookingResponse | null = null;
 let _itinerary: CheckoutItinerary | null = null;
+let _mainLeg: Leg | null = null;
 
 export function setCheckoutTrip(trip: RankedTrip, adults: number): void {
   _trip = trip;
   _adults = adults;
   _passengers = [];
   _bookingResult = null;
+  // A stale itinerary from an abandoned "Add Connections" flow would
+  // otherwise take precedence over this trip at review/payment.
+  _itinerary = null;
+  _mainLeg = null;
 }
 
 export function getCheckoutTrip(): RankedTrip | null {
@@ -46,6 +51,7 @@ export function clearCheckout(): void {
   _passengers = [];
   _bookingResult = null;
   _itinerary = null;
+  _mainLeg = null;
 }
 
 export function setCheckoutItinerary(
@@ -63,8 +69,18 @@ export function setCheckoutItinerary(
   const totalPriceEur = legs.reduce((sum, leg) => sum + leg.priceEur, 0);
 
   _itinerary = { legs, connections, totalPriceEur, adults };
+  _mainLeg = mainLeg;
+  _adults = adults;
+  _trip = null;
+  _bookingResult = null;
 }
 
 export function getCheckoutItinerary(): CheckoutItinerary | null {
   return _itinerary;
+}
+
+// The itinerary's leg order changes as connections are added; screens that
+// need the original main leg must not derive it from legs[0].
+export function getCheckoutMainLeg(): Leg | null {
+  return _mainLeg;
 }

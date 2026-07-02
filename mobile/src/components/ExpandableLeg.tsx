@@ -8,6 +8,7 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import type { BookedTrip } from '../types/booking';
 import { TRANSPORT_ICON } from '../constants/transport';
 
@@ -104,14 +105,14 @@ export function ExpandableLeg({ leg, colors, format }: Props) {
             </Text>
           </View>
 
-          {/* QR code placeholder — renders when ticket_qr_data is available */}
           {leg.ticket_qr_data ? (
             <View
               testID="qr-code"
-              style={[styles.qrPlaceholder, { borderColor: colors.border }]}
+              style={[styles.qrContainer, { borderColor: colors.border }]}
             >
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                QR Ticket
+              <QRCode value={leg.ticket_qr_data} size={120} />
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+                Scan at boarding
               </Text>
             </View>
           ) : null}
@@ -161,12 +162,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  qrPlaceholder: {
+  qrContainer: {
     marginTop: 8,
-    height: 80,
+    padding: 12,
     borderWidth: 1,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#fff',
   },
 });

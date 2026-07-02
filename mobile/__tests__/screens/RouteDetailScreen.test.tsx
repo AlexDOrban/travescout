@@ -11,6 +11,9 @@ jest.mock('../../src/contexts/ThemeContext', () => ({
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
+    currency: { code: 'EUR', symbol: '€' },
+    currencies: [{ code: 'EUR', symbol: '€' }],
+    setCurrency: jest.fn(),
     format: (n: number) => `€${n.toFixed(2)}`,
   }),
 }));
@@ -18,6 +21,7 @@ const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'amadeus:1' }),
   useRouter: () => ({ back: jest.fn(), push: mockPush }),
+  router: { canGoBack: () => false, back: jest.fn() },
 }));
 
 import React from 'react';

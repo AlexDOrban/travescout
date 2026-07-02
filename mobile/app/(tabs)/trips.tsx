@@ -37,15 +37,24 @@ export default function MyTripsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       setLoading(true);
       setError('');
       Promise.all([getTrips(), getItineraries()])
         .then(([tripsRes, itiRes]) => {
+          if (cancelled) return;
           setTrips(tripsRes.trips);
           setItineraries(itiRes.itineraries);
         })
-        .catch(e => setError(e.message || 'Failed to load trips'))
-        .finally(() => setLoading(false));
+        .catch(e => {
+          if (!cancelled) setError(e.message || 'Failed to load trips');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, []),
   );
 

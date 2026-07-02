@@ -2,7 +2,31 @@ import { getItem, setItem, deleteItem } from './storage';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-async function tryRefresh(): Promise<boolean> {
+if (!process.env.EXPO_PUBLIC_API_URL) {
+  // localhost points at the device itself on real hardware.
+  console.warn('[api] EXPO_PUBLIC_API_URL is not set — falling back to http://localhost:3000');
+}
+
+// Notifies the app (AuthContext) when the session can no longer be refreshed.
+let onSessionExpired: (() => void) | null = null;
+export function setOnSessionExpired(cb: (() => void) | null): void {
+  onSessionExpired = cb;
+}
+
+// Single in-flight refresh: concurrent 401s must not race each other,
+// because the server rotates the refresh token on every use.
+let refreshPromise: Promise<boolean> | null = null;
+
+function tryRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function doRefresh(): Promise<boolean> {
   const refreshToken = await getItem('refreshToken');
   if (!refreshToken) return false;
   try {
@@ -14,6 +38,9 @@ async function tryRefresh(): Promise<boolean> {
     if (!res.ok) return false;
     const data = await res.json();
     await setItem('accessToken', data.accessToken);
+    // The server rotates the refresh token; keeping the old one would
+    // log the user out on the next refresh.
+    if (data.refreshToken) await setItem('refreshToken', data.refreshToken);
     return true;
   } catch {
     return false;
@@ -30,7 +57,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   let res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
-  if (res.status === 401) {
+  // A 401 from /auth/* is a credentials problem (wrong password, bad
+  // refresh token), not an expired session — surface the server's message.
+  if (res.status === 401 && !path.startsWith('/auth/')) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const newToken = await getItem('accessToken');
@@ -41,6 +70,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } else {
       await deleteItem('accessToken');
       await deleteItem('refreshToken');
+      onSessionExpired?.();
       const err = Object.assign(new Error('Session expired'), { status: 401 });
       throw err;
     }
@@ -51,6 +81,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw Object.assign(new Error(body.error ?? `HTTP ${res.status}`), { status: res.status });
   }
 
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }
 

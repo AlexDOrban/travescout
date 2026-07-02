@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -13,30 +15,39 @@ import { AppHeader } from '../../src/components/AppHeader';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
+  getCheckoutItinerary,
   setPassengers,
 } from '../../src/stores/checkoutStore';
 import type { Passenger } from '../../src/types/booking';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function PassengersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const trip = getCheckoutTrip();
+  const itinerary = getCheckoutItinerary();
   const adults = getCheckoutAdults();
   const [forms, setForms] = useState<Passenger[]>(
     Array.from({ length: adults }, () => ({ name: '', email: '' })),
   );
   const [error, setError] = useState('');
 
-  if (!trip) {
+  if (!trip && !itinerary) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: colors.accent, marginTop: 12 }}>Go back</Text>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)')}>
+          <Text style={{ color: colors.accent, marginTop: 12 }}>Back to Search</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const routeOrigin = trip ? trip.origin : itinerary!.legs[0].originName;
+  const routeDestination = trip
+    ? trip.destination
+    : itinerary!.legs[itinerary!.legs.length - 1].destinationName;
 
   function updateForm(index: number, field: keyof Passenger, value: string) {
     setForms(prev => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
@@ -47,61 +58,72 @@ export default function PassengersScreen() {
     for (let i = 0; i < forms.length; i++) {
       if (!forms[i].name.trim()) return setError(`Enter name for passenger ${i + 1}`);
       if (!forms[i].email.trim()) return setError(`Enter email for passenger ${i + 1}`);
+      if (!EMAIL_RE.test(forms[i].email.trim())) {
+        return setError(`Enter a valid email for passenger ${i + 1}`);
+      }
     }
-    setPassengers(forms);
+    setPassengers(forms.map(f => ({ name: f.name.trim(), email: f.email.trim() })));
     router.push('/checkout/review');
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Passenger Details" />
-      <View style={styles.content}>
-        <Text style={[styles.step, { color: colors.textSecondary }]}>Step 1 of 3</Text>
-        <Text style={[styles.route, { color: colors.text }]}>
-          {trip.origin} → {trip.destination}
-        </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <AppHeader title="Passenger Details" showBack />
+        <View style={styles.content}>
+          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 1 of 3</Text>
+          <Text style={[styles.route, { color: colors.text }]}>
+            {routeOrigin} → {routeDestination}
+          </Text>
 
-        {forms.map((passenger, i) => (
-          <View key={i} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Passenger {i + 1}
-            </Text>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Full name</Text>
-            <TextInput
-              testID={`name-${i}`}
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={passenger.name}
-              onChangeText={v => updateForm(i, 'name', v)}
-              placeholder="John Doe"
-              placeholderTextColor={colors.textSecondary}
-            />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
-            <TextInput
-              testID={`email-${i}`}
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={passenger.email}
-              onChangeText={v => updateForm(i, 'email', v)}
-              placeholder="john@example.com"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-        ))}
+          {forms.map((passenger, i) => (
+            <View key={i} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                Passenger {i + 1}
+              </Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Full name</Text>
+              <TextInput
+                testID={`name-${i}`}
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                value={passenger.name}
+                onChangeText={v => updateForm(i, 'name', v)}
+                placeholder="John Doe"
+                placeholderTextColor={colors.textSecondary}
+              />
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+              <TextInput
+                testID={`email-${i}`}
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                value={passenger.email}
+                onChangeText={v => updateForm(i, 'email', v)}
+                placeholder="john@example.com"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          ))}
 
-        {error ? (
-          <Text testID="error" style={{ color: colors.error, marginTop: 8 }}>{error}</Text>
-        ) : null}
+          {error ? (
+            <Text testID="error" style={{ color: colors.error, marginTop: 8 }}>{error}</Text>
+          ) : null}
 
-        <TouchableOpacity
-          testID="next-btn"
-          style={[styles.button, { backgroundColor: colors.accent }]}
-          onPress={handleNext}
-        >
-          <Text style={styles.buttonText}>Continue to Review</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <TouchableOpacity
+            testID="next-btn"
+            style={[styles.button, { backgroundColor: colors.accent }]}
+            onPress={handleNext}
+          >
+            <Text style={styles.buttonText}>Continue to Review</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

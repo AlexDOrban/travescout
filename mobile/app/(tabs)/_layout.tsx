@@ -8,7 +8,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 export default function TabsLayout() {
   const { user, loading } = useAuth();
   const { colors } = useTheme();
-  if (loading) return <View style={{ flex: 1, backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} /></View>;
+  if (loading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} /></View>;
   if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
