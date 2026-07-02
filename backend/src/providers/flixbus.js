@@ -40,8 +40,13 @@ async function search(params) {
 }
 
 async function book({ trip, passengers }) {
+  // Stub booking — must never run against real money in production.
+  if (process.env.NODE_ENV === 'production' && process.env.MOCK_PROVIDERS !== 'true') {
+    throw new Error('FlixBus booking is not implemented');
+  }
+  const { randomUUID } = require('crypto');
   return {
-    bookingRef: `FB-${Date.now()}`,
+    bookingRef: `FB-${randomUUID().split('-')[0].toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };

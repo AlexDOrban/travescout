@@ -1,3 +1,6 @@
+const KNOWN_PROVIDERS = ['amadeus', 'flixbus', 'rail'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function validateItineraryBookingBody(body) {
   const { legs, passengers, paymentMethodId, origin, destination } = body;
 
@@ -6,8 +9,14 @@ function validateItineraryBookingBody(body) {
   }
 
   legs.forEach((leg, i) => {
-    if (!leg.provider || !leg.origin || !leg.destination || !leg.departAt || !leg.priceEur) {
+    if (!leg.provider || !leg.origin || !leg.destination || !leg.departAt || !leg.arriveAt) {
       throw Object.assign(new Error(`leg ${i} missing required fields`), { status: 400 });
+    }
+    if (!KNOWN_PROVIDERS.includes(leg.provider)) {
+      throw Object.assign(new Error(`leg ${i} has unknown provider: ${leg.provider}`), { status: 400 });
+    }
+    if (typeof leg.priceEur !== 'number' || !Number.isFinite(leg.priceEur) || leg.priceEur <= 0) {
+      throw Object.assign(new Error(`leg ${i} priceEur must be a positive number`), { status: 400 });
     }
   });
 
@@ -19,9 +28,12 @@ function validateItineraryBookingBody(body) {
     if (!p.name || !p.email) {
       throw Object.assign(new Error(`passenger ${i} missing name or email`), { status: 400 });
     }
+    if (typeof p.email !== 'string' || !EMAIL_RE.test(p.email)) {
+      throw Object.assign(new Error(`passenger ${i} email is invalid`), { status: 400 });
+    }
   });
 
-  if (!paymentMethodId) {
+  if (!paymentMethodId || typeof paymentMethodId !== 'string') {
     throw Object.assign(new Error('paymentMethodId is required'), { status: 400 });
   }
 

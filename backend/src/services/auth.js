@@ -37,7 +37,18 @@ async function register(email, password) {
     throw err;
   }
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const user = await User.create(email, hash);
+  let user;
+  try {
+    user = await User.create(email, hash);
+  } catch (e) {
+    // Concurrent registration can pass findByEmail and hit the unique constraint.
+    if (e.code === '23505') {
+      const err = new Error('Email already registered');
+      err.status = 409;
+      throw err;
+    }
+    throw e;
+  }
   const accessToken = makeAccessToken(user.id);
   const refreshToken = makeRefreshToken(user.id);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
@@ -74,13 +85,12 @@ async function refresh(token) {
     err.status = 401;
     throw err;
   }
-  const stored = await RefreshToken.findValid(token);
+  const stored = await RefreshToken.consume(token);
   if (!stored) {
     const err = new Error('Refresh token not found or expired');
     err.status = 401;
     throw err;
   }
-  await RefreshToken.remove(token);
   const newRefresh = makeRefreshToken(payload.sub);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
   await RefreshToken.save(payload.sub, newRefresh, expiresAt);

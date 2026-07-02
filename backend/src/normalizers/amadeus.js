@@ -1,13 +1,17 @@
 /**
- * Parses Amadeus ISO 8601 duration (e.g. "PT1H15M") to minutes.
+ * Parses Amadeus ISO 8601 duration (e.g. "PT1H15M", "P1DT2H30M") to minutes.
  * @param {string} duration
  * @returns {number}
  */
 function parseDuration(duration) {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
-  const hours = parseInt(match[1] || '0', 10);
-  const mins = parseInt(match[2] || '0', 10);
-  return hours * 60 + mins;
+  const match = typeof duration === 'string'
+    ? duration.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/)
+    : null;
+  if (!match) return 0;
+  const days = parseInt(match[1] || '0', 10);
+  const hours = parseInt(match[2] || '0', 10);
+  const mins = parseInt(match[3] || '0', 10);
+  return days * 24 * 60 + hours * 60 + mins;
 }
 
 /**

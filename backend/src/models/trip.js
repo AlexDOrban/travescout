@@ -4,9 +4,9 @@ async function create(data) {
   const { rows } = await db.query(
     `INSERT INTO trips
        (user_id, provider, booking_ref, origin, destination,
-        depart_at, return_at, price_eur, currency_display, status, raw_ticket_url,
+        depart_at, arrive_at, return_at, price_eur, currency_display, status, raw_ticket_url,
         itinerary_id, leg_order, ticket_qr_data)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       data.userId,
@@ -15,6 +15,7 @@ async function create(data) {
       data.origin,
       data.destination,
       data.departAt,
+      data.arriveAt || null,
       data.returnAt || null,
       data.priceEur,
       data.currencyDisplay || 'EUR',

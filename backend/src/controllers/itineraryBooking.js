@@ -11,6 +11,7 @@ async function book(req, res, next) {
       paymentMethodId,
       origin,
       destination,
+      idempotencyKey: req.get('Idempotency-Key') || req.body.idempotencyKey || undefined,
     });
     res.status(201).json(result);
   } catch (err) {

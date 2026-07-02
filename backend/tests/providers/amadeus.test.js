@@ -1,16 +1,25 @@
 jest.mock('amadeus');
 const Amadeus = require('amadeus');
+
+// The provider caches a single Amadeus client, so expose one shared mock.
+const mockGet = jest.fn();
+Amadeus.mockImplementation(() => ({
+  shopping: {
+    flightOffersSearch: { get: mockGet },
+  },
+}));
+
 const { search } = require('../../src/providers/amadeus');
 
 describe('Amadeus provider', () => {
   const params = { from: 'LON', to: 'PAR', departDate: '2026-04-15', adults: 1 };
 
   beforeEach(() => {
-    Amadeus.mockClear();
+    mockGet.mockReset();
   });
 
   it('calls the Amadeus flight offers API with correct params', async () => {
-    const mockGet = jest.fn().mockResolvedValue({
+    mockGet.mockResolvedValue({
       data: [
         {
           id: 'offer-1',
@@ -32,12 +41,6 @@ describe('Amadeus provider', () => {
       ],
     });
 
-    Amadeus.mockImplementation(() => ({
-      shopping: {
-        flightOffersSearch: { get: mockGet },
-      },
-    }));
-
     const results = await search(params);
 
     expect(mockGet).toHaveBeenCalledWith({
@@ -54,25 +57,25 @@ describe('Amadeus provider', () => {
     expect(results[0]).toHaveProperty('price.grandTotal');
   });
 
-  it('returns an empty array when Amadeus returns no data', async () => {
-    Amadeus.mockImplementation(() => ({
-      shopping: {
-        flightOffersSearch: { get: jest.fn().mockResolvedValue({ data: [] }) },
-      },
+  it('passes returnDate through for round-trip searches', async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await search({ ...params, returnDate: '2026-04-20' });
+
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
+      returnDate: '2026-04-20',
     }));
+  });
+
+  it('returns an empty array when Amadeus returns no data', async () => {
+    mockGet.mockResolvedValue({ data: [] });
 
     const results = await search(params);
     expect(results).toEqual([]);
   });
 
   it('throws when Amadeus API call fails', async () => {
-    Amadeus.mockImplementation(() => ({
-      shopping: {
-        flightOffersSearch: {
-          get: jest.fn().mockRejectedValue(new Error('API error')),
-        },
-      },
-    }));
+    mockGet.mockRejectedValue(new Error('API error'));
 
     await expect(search(params)).rejects.toThrow('API error');
   });

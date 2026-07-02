@@ -3,7 +3,9 @@ require('dotenv').config({ path: '.env.test' });
 // Mock Stripe (follows existing booking.integration.test.js pattern)
 jest.mock('../src/services/stripe', () => ({
   getOrCreateCustomer: jest.fn().mockResolvedValue('cus_test_123'),
-  charge: jest.fn().mockResolvedValue({ id: 'pi_test_123', status: 'succeeded' }),
+  authorize: jest.fn().mockResolvedValue({ id: 'pi_test_123', status: 'requires_capture' }),
+  capture: jest.fn().mockResolvedValue({ id: 'pi_test_123', status: 'succeeded' }),
+  cancel: jest.fn().mockResolvedValue({ id: 'pi_test_123', status: 'canceled' }),
 }));
 
 // Mock providers

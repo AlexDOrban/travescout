@@ -24,28 +24,49 @@ async function searchConnections({ hub, cityCode, direction, dateTime, adults })
     to = cityCode;
   }
 
+  // The valid time window can cross midnight (early-morning departures need
+  // previous-day connections; late arrivals need next-day ones), so query
+  // every UTC date the window touches.
+  const windowStart = direction === 'to'
+    ? new Date(refTime.getTime() - 6 * 60 * 60 * 1000)
+    : new Date(refTime.getTime() + 30 * 60 * 1000);
+  const windowEnd = direction === 'to'
+    ? new Date(refTime.getTime() - 1 * 60 * 60 * 1000)
+    : new Date(refTime.getTime() + 4 * 60 * 60 * 1000);
+  const searchDates = [...new Set([
+    windowStart.toISOString().split('T')[0],
+    windowEnd.toISOString().split('T')[0],
+  ])];
+
   // Search bus and train providers in parallel
   const providersQueried = [];
   const providersFailed = [];
   const allResults = [];
 
-  const results = await Promise.allSettled(
-    PROVIDERS.map(({ name, provider, normalizer }) => {
-      providersQueried.push(name);
-      return provider.search({
-        from,
-        to,
-        departDate: refTime.toISOString().split('T')[0],
-        adults,
-      }).then(raw => normalizer.normalize(raw));
-    })
-  );
+  const tasks = [];
+  PROVIDERS.forEach(({ name, provider, normalizer }) => {
+    providersQueried.push(name);
+    searchDates.forEach(departDate => {
+      tasks.push({
+        name,
+        run: provider.search({ from, to, departDate, adults })
+          .then(raw => normalizer.normalize(raw)),
+      });
+    });
+  });
+  const results = await Promise.allSettled(tasks.map(t => t.run));
 
+  const seenIds = new Set();
   results.forEach((result, i) => {
     if (result.status === 'fulfilled') {
-      allResults.push(...result.value);
-    } else {
-      providersFailed.push(PROVIDERS[i].name);
+      result.value.forEach(trip => {
+        if (!seenIds.has(trip.id)) {
+          seenIds.add(trip.id);
+          allResults.push(trip);
+        }
+      });
+    } else if (!providersFailed.includes(tasks[i].name)) {
+      providersFailed.push(tasks[i].name);
     }
   });
 

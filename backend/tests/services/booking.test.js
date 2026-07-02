@@ -31,7 +31,9 @@ beforeEach(() => {
   User.findById.mockResolvedValue({ id: 'user-1', email: 'test@example.com', stripe_customer_id: null });
   User.setStripeCustomerId.mockResolvedValue();
   StripeService.getOrCreateCustomer.mockResolvedValue('cus_123');
-  StripeService.charge.mockResolvedValue({ id: 'pi_123', status: 'succeeded' });
+  StripeService.authorize.mockResolvedValue({ id: 'pi_123', status: 'requires_capture' });
+  StripeService.capture.mockResolvedValue({ id: 'pi_123', status: 'succeeded' });
+  StripeService.cancel.mockResolvedValue({ id: 'pi_123', status: 'canceled' });
   flixbus.book.mockResolvedValue({ bookingRef: 'FB-001', status: 'confirmed', ticketUrl: null });
   Trip.create.mockResolvedValue({
     id: 'trip-uuid',
@@ -66,13 +68,18 @@ describe('BookingService.book', () => {
     expect(User.setStripeCustomerId).not.toHaveBeenCalled();
   });
 
-  it('charges Stripe with the correct amount', async () => {
+  it('authorizes Stripe with the correct amount', async () => {
     await book(bookParams);
-    expect(StripeService.charge).toHaveBeenCalledWith(expect.objectContaining({
+    expect(StripeService.authorize).toHaveBeenCalledWith(expect.objectContaining({
       customerId: 'cus_123',
       paymentMethodId: 'pm_card_visa',
       amountEur: 18,
     }));
+  });
+
+  it('captures the payment after the provider booking succeeds', async () => {
+    await book(bookParams);
+    expect(StripeService.capture).toHaveBeenCalledWith('pi_123');
   });
 
   it('calls provider book()', async () => {
@@ -95,13 +102,23 @@ describe('BookingService.book', () => {
     await expect(book(bookParams)).rejects.toMatchObject({ status: 404 });
   });
 
-  it('throws 400 for an unknown provider', async () => {
+  it('throws 400 for an unknown provider before charging', async () => {
     await expect(book({ ...bookParams, trip: { ...tripPayload, provider: 'unknown' } }))
       .rejects.toMatchObject({ status: 400 });
+    expect(StripeService.authorize).not.toHaveBeenCalled();
   });
 
-  it('throws 402 if payment intent status is not succeeded', async () => {
-    StripeService.charge.mockResolvedValue({ id: 'pi_123', status: 'requires_action' });
+  it('throws 402 if the payment cannot be authorized', async () => {
+    StripeService.authorize.mockResolvedValue({ id: 'pi_123', status: 'requires_action' });
     await expect(book(bookParams)).rejects.toMatchObject({ status: 402 });
+    expect(StripeService.capture).not.toHaveBeenCalled();
+  });
+
+  it('cancels the authorization and throws 502 when the provider booking fails', async () => {
+    flixbus.book.mockRejectedValue(new Error('provider down'));
+    await expect(book(bookParams)).rejects.toMatchObject({ status: 502 });
+    expect(StripeService.cancel).toHaveBeenCalledWith('pi_123');
+    expect(StripeService.capture).not.toHaveBeenCalled();
+    expect(Trip.create).not.toHaveBeenCalled();
   });
 });
