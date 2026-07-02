@@ -116,35 +116,30 @@ export default function MyTripsScreen() {
                   testID="itinerary-card"
                   style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
                 >
-                  {/* Itinerary header */}
+                  {/* Itinerary header: route + ref/legs left, price + status right */}
                   <View style={styles.cardHeader}>
-                    <Text style={{ fontSize: 20 }}>🗺️</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.route, { color: colors.text }]}>
                         {iti.origin} → {iti.destination}
                       </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                        {iti.booking_ref} · {iti.legs?.length ?? 0} {iti.legs?.length === 1 ? 'leg' : 'legs'} ·{' '}
                         {new Date(iti.depart_at).toLocaleDateString()}
                       </Text>
                     </View>
-                    <Text style={[styles.price, { color: colors.cheapest }]}>
-                      {format(parseFloat(iti.total_price_eur))}
-                    </Text>
-                  </View>
-
-                  {/* Itinerary footer with booking ref and status */}
-                  <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                      {iti.booking_ref}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.status,
-                        { color: iti.status === 'confirmed' ? colors.cheapest : colors.textSecondary },
-                      ]}
-                    >
-                      {iti.status}
-                    </Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.price, { color: colors.cheapest }]}>
+                        {format(parseFloat(iti.total_price_eur))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.status,
+                          { color: iti.status === 'confirmed' ? colors.cheapest : colors.warning },
+                        ]}
+                      >
+                        {iti.status.replace('_', ' ')}
+                      </Text>
+                    </View>
                   </View>
 
                   {/* Expandable legs */}

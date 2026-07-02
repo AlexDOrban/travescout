@@ -26,6 +26,7 @@ export interface BookedTrip {
   origin: string;
   destination: string;
   depart_at: string;
+  arrive_at?: string | null;
   return_at: string | null;
   price_eur: string; // backend returns string from PostgreSQL numeric
   currency_display: string;

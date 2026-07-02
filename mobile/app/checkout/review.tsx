@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
+import { Stepper } from '../../src/components/Stepper';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import {
   getCheckoutTrip,
@@ -36,9 +37,8 @@ export default function ReviewScreen() {
     return (
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <AppHeader title="Review Booking" showBack />
+        <Stepper steps={['Passengers', 'Review', 'Pay']} current={1} colors={colors} />
         <View style={styles.content}>
-          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
-
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text testID="itinerary-header" style={[styles.cardTitle, { color: colors.text }]}>
               Your Route · {itinerary.legs.length} legs
@@ -123,9 +123,8 @@ export default function ReviewScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="Review Booking" showBack />
+      <Stepper steps={['Passengers', 'Review', 'Pay']} current={1} colors={colors} />
       <View style={styles.content}>
-        <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
-
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={{ fontSize: 24 }}>{TRANSPORT_ICON[trip.transportType] ?? '🚐'}</Text>
           <Text style={[styles.route, { color: colors.text }]}>

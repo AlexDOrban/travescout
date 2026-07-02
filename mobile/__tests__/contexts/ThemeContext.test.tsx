@@ -31,7 +31,7 @@ describe('ThemeContext', () => {
 
   it('provides dark background colour', () => {
     const { getByTestId } = render(<ThemeProvider><Consumer /></ThemeProvider>);
-    expect(getByTestId('bg').props.children).toBe('#0f172a');
+    expect(getByTestId('bg').props.children).toBe('#0b0d13');
   });
 
   it('toggles to light mode', () => {

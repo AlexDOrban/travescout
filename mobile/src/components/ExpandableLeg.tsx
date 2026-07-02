@@ -98,6 +98,15 @@ export function ExpandableLeg({ leg, colors, format }: Props) {
               {departDate.toLocaleDateString()} at {departStr}
             </Text>
           </View>
+          {leg.arrive_at ? (
+            <View style={styles.detailRow}>
+              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Arrives</Text>
+              <Text style={{ color: colors.text, fontSize: 13 }}>
+                {new Date(leg.arrive_at).toLocaleDateString()} at{' '}
+                {new Date(leg.arrive_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.detailRow}>
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Price</Text>
             <Text style={[styles.price, { color: colors.cheapest }]}>
@@ -111,7 +120,10 @@ export function ExpandableLeg({ leg, colors, format }: Props) {
               style={[styles.qrContainer, { borderColor: colors.border }]}
             >
               <QRCode value={leg.ticket_qr_data} size={120} />
-              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+              <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 8, letterSpacing: 1 }}>
+                {leg.booking_ref}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                 Scan at boarding
               </Text>
             </View>

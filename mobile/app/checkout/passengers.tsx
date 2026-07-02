@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
+import { Stepper } from '../../src/components/Stepper';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
@@ -76,8 +77,8 @@ export default function PassengersScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <AppHeader title="Passenger Details" showBack />
+        <Stepper steps={['Passengers', 'Review', 'Pay']} current={0} colors={colors} />
         <View style={styles.content}>
-          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 1 of 3</Text>
           <Text style={[styles.route, { color: colors.text }]}>
             {routeOrigin} → {routeDestination}
           </Text>

@@ -46,13 +46,23 @@ export function FilterChips({ transport, onTransportChange, sort, onSortChange }
         style={[
           styles.chip,
           {
-            backgroundColor: active ? colors.accent : colors.card,
-            borderColor: colors.border,
+            backgroundColor: active ? colors.accent : 'transparent',
+            borderColor: active ? colors.accent : colors.border,
           },
         ]}
         onPress={onPress}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
       >
-        <Text style={{ color: active ? '#fff' : colors.text, fontSize: 13 }}>{label}</Text>
+        <Text
+          style={{
+            color: active ? '#fff' : colors.textSecondary,
+            fontSize: 13,
+            fontWeight: active ? '600' : '400',
+          }}
+        >
+          {label}
+        </Text>
       </TouchableOpacity>
     );
   }
@@ -88,9 +98,11 @@ export function FilterChips({ transport, onTransportChange, sort, onSortChange }
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
   },
 });

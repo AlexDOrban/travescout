@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
+import { Stepper } from '../../src/components/Stepper';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
@@ -131,9 +132,8 @@ export default function PaymentScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <AppHeader title="Payment" showBack />
+        <Stepper steps={['Passengers', 'Review', 'Pay']} current={2} colors={colors} />
         <View style={styles.content}>
-          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 3 of 3</Text>
-
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Card Details</Text>
             <Text style={[styles.label, { color: colors.textSecondary }]}>Card number</Text>

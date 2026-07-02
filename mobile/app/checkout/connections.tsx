@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
+import { Stepper } from '../../src/components/Stepper';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import {
   getCheckoutItinerary,
@@ -140,15 +141,51 @@ export default function ConnectionsScreen() {
 
   const needsAny = showDeparture || showArrival;
 
+  const shortTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const bufferLabel = (mins: number) =>
+    mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60 ? `${mins % 60}m` : ''}`.trim() : `${mins} min`;
+
+  const totalEur =
+    mainLeg.priceEur +
+    (skipDeparture ? 0 : selectedDeparture?.priceEur ?? 0) +
+    (skipArrival ? 0 : selectedArrival?.priceEur ?? 0);
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="Add Connections" showBack />
+      <Stepper steps={['Route', 'Connections', 'Book']} current={1} colors={colors} />
       <View style={styles.content}>
 
+        {/* Selected main leg summary */}
+        <View
+          testID="selected-main-leg"
+          style={[styles.selectedCard, { backgroundColor: colors.accent + '14', borderColor: colors.accent }]}
+        >
+          <Text style={[styles.selectedLabel, { color: colors.accent }]}>
+            {TRANSPORT_ICON[mainLeg.transportType] ?? '🚐'} YOUR SELECTED{' '}
+            {mainLeg.transportType === 'flight' ? 'FLIGHT' : mainLeg.transportType === 'train' ? 'TRAIN' : 'BUS'}
+          </Text>
+          <View style={styles.selectedRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.route, { color: colors.text }]}>
+                {mainLeg.origin} → {mainLeg.destination}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                {shortTime(mainLeg.departAt)} → {shortTime(mainLeg.arriveAt)}
+              </Text>
+            </View>
+            <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+              {format(mainLeg.priceEur)}
+            </Text>
+          </View>
+        </View>
+
         {!needsAny && (
-          <View testID="no-connections" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>No connections needed</Text>
-            <Text style={{ color: colors.textSecondary }}>
+          <View testID="no-connections" style={[styles.noConnCard, { borderColor: colors.border }]}>
+            <Text style={{ fontSize: 32 }}>✅</Text>
+            <Text style={[styles.sectionTitle, { color: colors.cheapest }]}>No connections needed</Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
               Your route departs and arrives at your search cities
             </Text>
           </View>
@@ -202,21 +239,31 @@ export default function ConnectionsScreen() {
                         setSkipDeparture(false);
                       }}
                     >
-                      <Text style={{ fontSize: 20 }}>
-                        {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                      </Text>
-                      <Text style={[styles.route, { color: colors.text }]}>
-                        {leg.origin} → {leg.destination}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {new Date(leg.departAt).toLocaleString()} – {new Date(leg.arriveAt).toLocaleString()}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {minsBuffer} min before main leg
-                      </Text>
-                      <Text style={{ color: colors.cheapest, fontWeight: '600' }}>
-                        {format(leg.priceEur)}
-                      </Text>
+                      <View style={styles.optionRow}>
+                        <Text style={{ fontSize: 20 }}>
+                          {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
+                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.route, { color: colors.text }]}>
+                            {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
+                          </Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {leg.provider}
+                          </Text>
+                          <Text
+                            style={{
+                              color: minsBuffer < 60 ? colors.warning : colors.cheapest,
+                              fontSize: 13,
+                              marginTop: 2,
+                            }}
+                          >
+                            {minsBuffer < 60 ? '⚠' : '✓'} {bufferLabel(minsBuffer)} before main leg
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+                          {format(leg.priceEur)}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -291,21 +338,31 @@ export default function ConnectionsScreen() {
                         setSkipArrival(false);
                       }}
                     >
-                      <Text style={{ fontSize: 20 }}>
-                        {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                      </Text>
-                      <Text style={[styles.route, { color: colors.text }]}>
-                        {leg.origin} → {leg.destination}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {new Date(leg.departAt).toLocaleString()} – {new Date(leg.arriveAt).toLocaleString()}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {minsBuffer} min after main leg
-                      </Text>
-                      <Text style={{ color: colors.cheapest, fontWeight: '600' }}>
-                        {format(leg.priceEur)}
-                      </Text>
+                      <View style={styles.optionRow}>
+                        <Text style={{ fontSize: 20 }}>
+                          {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
+                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.route, { color: colors.text }]}>
+                            {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
+                          </Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {leg.provider}
+                          </Text>
+                          <Text
+                            style={{
+                              color: minsBuffer < 45 ? colors.warning : colors.cheapest,
+                              fontSize: 13,
+                              marginTop: 2,
+                            }}
+                          >
+                            {minsBuffer < 45 ? '⚠' : '✓'} {bufferLabel(minsBuffer)} after main leg
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+                          {format(leg.priceEur)}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -337,7 +394,7 @@ export default function ConnectionsScreen() {
           style={[styles.button, { backgroundColor: colors.accent }]}
           onPress={handleContinue}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          <Text style={styles.buttonText}>Continue to Booking · {format(totalEur)} total</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -350,15 +407,28 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   subtitle: { fontSize: 13, marginBottom: 8 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 6 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6, marginBottom: 8 },
+  selectedCard: { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 8 },
+  selectedLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
+  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  noConnCard: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
   route: { fontSize: 16, fontWeight: '600' },
   spinner: { marginVertical: 16 },
   skipButton: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   retryButton: {
     borderWidth: 1,

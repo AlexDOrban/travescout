@@ -130,7 +130,7 @@ describe('MyTripsScreen', () => {
 
     const { findByText } = render(<MyTripsScreen />);
     expect(await findByText('LON → BCN')).toBeTruthy();
-    expect(await findByText('ITI-ABC')).toBeTruthy();
+    expect(await findByText(/ITI-ABC/)).toBeTruthy();
   });
 
   it('renders standalone trips alongside itineraries', async () => {
@@ -166,6 +166,6 @@ describe('MyTripsScreen', () => {
     expect(await findByText('AMS → BRU')).toBeTruthy();
     expect(await findByText('FB-STANDALONE')).toBeTruthy();
     expect(await findByText('LON → MAD')).toBeTruthy();
-    expect(await findByText('ITI-XYZ')).toBeTruthy();
+    expect(await findByText(/ITI-XYZ/)).toBeTruthy();
   });
 });
