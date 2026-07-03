@@ -90,6 +90,7 @@ export default function ConfirmationScreen() {
             </Text>
             {itinerary.legs.map((leg, index) => {
               const legConfirmed = leg.status === 'confirmed';
+              const failure = itineraryBooking.failedLegs?.find(f => f.legOrder === index);
               return (
                 <View
                   key={leg.id}
@@ -103,8 +104,15 @@ export default function ConfirmationScreen() {
                       {leg.origin} → {leg.destination}
                     </Text>
                     <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                      {leg.provider} · {leg.booking_ref}
+                      {legConfirmed
+                        ? `${leg.provider} · ${leg.booking_ref}`
+                        : `${leg.provider} · not booked${failure ? ` — ${failure.error}` : ''}`}
                     </Text>
+                    {!legConfirmed ? (
+                      <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                        You were not charged for this leg.
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               );

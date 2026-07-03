@@ -7,6 +7,8 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -29,7 +31,6 @@ export default function SearchScreen() {
   const [fromCity, setFromCity] = useState<City | null>(null);
   const [toCity, setToCity] = useState<City | null>(null);
   const [departDate, setDepartDate] = useState('');
-  const [returnDate, setReturnDate] = useState('');
   const [adults, setAdults] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -55,11 +56,6 @@ export default function SearchScreen() {
     if (!departDate) return setError('Enter a departure date');
     const departError = validateDate(departDate, 'Departure date');
     if (departError) return setError(departError);
-    if (returnDate) {
-      const returnError = validateDate(returnDate, 'Return date');
-      if (returnError) return setError(returnError);
-      if (returnDate < departDate) return setError('Return date must be on or after departure');
-    }
 
     setLoading(true);
     try {
@@ -67,7 +63,6 @@ export default function SearchScreen() {
         from: fromCity.code,
         to: toCity.code,
         departDate,
-        returnDate: returnDate || undefined,
         adults,
       });
       setSearchResults(data.results, data.meta);
@@ -80,6 +75,10 @@ export default function SearchScreen() {
   }
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       keyboardShouldPersistTaps="handled"
@@ -116,25 +115,6 @@ export default function SearchScreen() {
           ]}
           value={departDate}
           onChangeText={t => setDepartDate(formatDateInput(t))}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textSecondary}
-        />
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Return date (optional)
-        </Text>
-        <TextInput
-          testID="return-date"
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            },
-          ]}
-          value={returnDate}
-          onChangeText={t => setReturnDate(formatDateInput(t))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={colors.textSecondary}
         />
@@ -183,6 +163,7 @@ export default function SearchScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

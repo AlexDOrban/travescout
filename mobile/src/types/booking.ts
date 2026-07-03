@@ -5,6 +5,8 @@ export interface Passenger {
 
 export interface BookingRequest {
   trip: {
+    /** Offer id from search — the server re-quotes the authoritative price by this. */
+    id: string;
     provider: string;
     origin: string;
     destination: string;

@@ -27,6 +27,10 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const React = require('react');
+    React.useEffect(() => { cb(); }, []);
+  },
   router: { canGoBack: () => false, back: jest.fn() },
 }));
 jest.mock('../../src/components/TripCard', () => ({

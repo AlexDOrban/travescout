@@ -5,6 +5,7 @@ import {
   getCheckoutTrip,
   getCheckoutAdults,
   getPassengers,
+  getCheckoutIdempotencyKey,
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { book } from '../../src/api/booking';
@@ -60,6 +61,7 @@ beforeEach(() => {
   });
   mockGetAdults.mockReturnValue(1);
   mockGetPassengers.mockReturnValue([{ name: 'John Doe', email: 'john@test.com' }]);
+  (getCheckoutIdempotencyKey as jest.Mock).mockReturnValue('bk_test_key');
 });
 
 describe('PaymentScreen', () => {
@@ -92,6 +94,7 @@ describe('PaymentScreen', () => {
       expect(mockBook).toHaveBeenCalledWith(
         expect.objectContaining({
           trip: {
+            id: 'a:1',
             provider: 'amadeus',
             origin: 'LON',
             destination: 'PAR',
@@ -102,7 +105,7 @@ describe('PaymentScreen', () => {
           },
           passengers: [{ name: 'John Doe', email: 'john@test.com' }],
           paymentMethodId: 'pm_card_visa',
-          idempotencyKey: expect.any(String),
+          idempotencyKey: 'bk_test_key',
         }),
       );
       expect(mockSetBookingResult).toHaveBeenCalledWith(bookingResponse);

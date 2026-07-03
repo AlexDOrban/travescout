@@ -18,17 +18,16 @@ describe('search', () => {
     );
   });
 
-  it('includes optional returnDate and adults', async () => {
+  it('includes adults (round trips are not supported)', async () => {
     mockGet.mockResolvedValue({ results: [], meta: {} });
     await search({
       from: 'LON',
       to: 'PAR',
       departDate: '2026-04-15',
-      returnDate: '2026-04-20',
       adults: 2,
     });
     expect(mockGet).toHaveBeenCalledWith(
-      '/search?from=LON&to=PAR&departDate=2026-04-15&returnDate=2026-04-20&adults=2',
+      '/search?from=LON&to=PAR&departDate=2026-04-15&adults=2',
     );
   });
 

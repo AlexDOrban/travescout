@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, FlatList, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { AppHeader } from '../src/components/AppHeader';
 import { TripCard } from '../src/components/TripCard';
@@ -14,8 +14,17 @@ import { getSearchResults, getSearchMeta } from '../src/stores/searchStore';
 export default function ResultsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const results = getSearchResults();
-  const meta = getSearchMeta();
+  // Re-read the store whenever this screen regains focus, so backing into an
+  // older results screen after a newer search doesn't show a stale list whose
+  // cards no longer resolve ("Trip not found").
+  const [results, setResults] = useState(getSearchResults());
+  const [meta, setMeta] = useState(getSearchMeta());
+  useFocusEffect(
+    useCallback(() => {
+      setResults(getSearchResults());
+      setMeta(getSearchMeta());
+    }, []),
+  );
   const [transport, setTransport] = useState<TransportFilter>('all');
   const [sort, setSort] = useState<SortMode>('smart');
 

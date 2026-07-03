@@ -59,10 +59,15 @@ export default function ConnectionsScreen() {
   const [loadingArrival, setLoadingArrival] = useState(false);
   const [departureError, setDepartureError] = useState('');
   const [arrivalError, setArrivalError] = useState('');
+  const [departureLoaded, setDepartureLoaded] = useState(false);
+  const [arrivalLoaded, setArrivalLoaded] = useState(false);
+  const [departureNote, setDepartureNote] = useState('');
+  const [arrivalNote, setArrivalNote] = useState('');
 
   function fetchDeparture() {
     if (!mainLeg || !showDeparture) return;
     setDepartureError('');
+    setDepartureNote('');
     setLoadingDeparture(true);
     searchConnections({
       hub: mainLeg.origin,
@@ -71,19 +76,26 @@ export default function ConnectionsScreen() {
       dateTime: mainLeg.departAt,
       adults,
     })
-      // Drop options that don't actually connect (negative buffer).
-      .then(res => setDepartureOptions(
-        res.connections.filter(
-          leg => minutesBefore(leg.arriveAt, mainLeg.departAt) > 0,
-        ),
-      ))
+      .then(res => {
+        // Drop options that don't actually connect (negative buffer).
+        setDepartureOptions(
+          res.connections.filter(leg => minutesBefore(leg.arriveAt, mainLeg.departAt) > 0),
+        );
+        if (res.meta?.providersFailed?.length) {
+          setDepartureNote(`Some providers didn't respond (${res.meta.providersFailed.join(', ')}).`);
+        }
+      })
       .catch(err => setDepartureError(err.message || 'Failed to load connections'))
-      .finally(() => setLoadingDeparture(false));
+      .finally(() => {
+        setLoadingDeparture(false);
+        setDepartureLoaded(true);
+      });
   }
 
   function fetchArrival() {
     if (!mainLeg || !showArrival) return;
     setArrivalError('');
+    setArrivalNote('');
     setLoadingArrival(true);
     searchConnections({
       hub: mainLeg.destination,
@@ -92,13 +104,19 @@ export default function ConnectionsScreen() {
       dateTime: mainLeg.arriveAt,
       adults,
     })
-      .then(res => setArrivalOptions(
-        res.connections.filter(
-          leg => minutesAfter(mainLeg.arriveAt, leg.departAt) > 0,
-        ),
-      ))
+      .then(res => {
+        setArrivalOptions(
+          res.connections.filter(leg => minutesAfter(mainLeg.arriveAt, leg.departAt) > 0),
+        );
+        if (res.meta?.providersFailed?.length) {
+          setArrivalNote(`Some providers didn't respond (${res.meta.providersFailed.join(', ')}).`);
+        }
+      })
       .catch(err => setArrivalError(err.message || 'Failed to load connections'))
-      .finally(() => setLoadingArrival(false));
+      .finally(() => {
+        setLoadingArrival(false);
+        setArrivalLoaded(true);
+      });
   }
 
   useEffect(() => {
@@ -218,10 +236,21 @@ export default function ConnectionsScreen() {
               </View>
             ) : null}
 
+            {departureNote ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6 }}>{departureNote}</Text>
+            ) : null}
+
             {loadingDeparture ? (
               <ActivityIndicator testID="departure-loading" color={colors.accent} style={styles.spinner} />
             ) : (
               <>
+                {!departureError && departureLoaded && departureOptions.length === 0 ? (
+                  <View testID="departure-empty" style={[styles.emptyCard, { borderColor: colors.border }]}>
+                    <Text style={{ color: colors.textSecondary }}>
+                      No connecting bus or train found for this time. You can skip and arrange your own way.
+                    </Text>
+                  </View>
+                ) : null}
                 {departureOptions.map(leg => {
                   const isSelected = selectedDeparture?.id === leg.id;
                   const minsBuffer = minutesBefore(leg.arriveAt, mainLeg.departAt);
@@ -317,10 +346,21 @@ export default function ConnectionsScreen() {
               </View>
             ) : null}
 
+            {arrivalNote ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6 }}>{arrivalNote}</Text>
+            ) : null}
+
             {loadingArrival ? (
               <ActivityIndicator testID="arrival-loading" color={colors.accent} style={styles.spinner} />
             ) : (
               <>
+                {!arrivalError && arrivalLoaded && arrivalOptions.length === 0 ? (
+                  <View testID="arrival-empty" style={[styles.emptyCard, { borderColor: colors.border }]}>
+                    <Text style={{ color: colors.textSecondary }}>
+                      No connecting bus or train found for this time. You can skip and arrange your own way.
+                    </Text>
+                  </View>
+                ) : null}
                 {arrivalOptions.map(leg => {
                   const isSelected = selectedArrival?.id === leg.id;
                   const minsBuffer = minutesAfter(mainLeg.arriveAt, leg.departAt);
@@ -422,6 +462,13 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     gap: 8,
+  },
+  emptyCard: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
   },
   route: { fontSize: 16, fontWeight: '600' },
   spinner: { marginVertical: 16 },

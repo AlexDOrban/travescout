@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
+  TouchableOpacity,
   SectionList,
   StyleSheet,
   ActivityIndicator,
@@ -11,17 +12,10 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { ExpandableLeg } from '../../src/components/ExpandableLeg';
-import { TRANSPORT_ICON } from '../../src/constants/transport';
 import { getTrips } from '../../src/api/booking';
 import { getItineraries } from '../../src/api/itinerary';
 import type { BookedTrip } from '../../src/types/booking';
 import type { BookedItinerary } from '../../src/types/itinerary';
-
-const PROVIDER_TRANSPORT: Record<string, string> = {
-  amadeus: 'flight',
-  flixbus: 'bus',
-  rail: 'train',
-};
 
 type SectionItem =
   | { kind: 'itinerary'; data: BookedItinerary }
@@ -35,28 +29,28 @@ export default function MyTripsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      setLoading(true);
-      setError('');
-      Promise.all([getTrips(), getItineraries()])
-        .then(([tripsRes, itiRes]) => {
-          if (cancelled) return;
-          setTrips(tripsRes.trips);
-          setItineraries(itiRes.itineraries);
-        })
-        .catch(e => {
-          if (!cancelled) setError(e.message || 'Failed to load trips');
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, []),
-  );
+  const load = useCallback(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    Promise.all([getTrips(), getItineraries()])
+      .then(([tripsRes, itiRes]) => {
+        if (cancelled) return;
+        setTrips(tripsRes.trips);
+        setItineraries(itiRes.itineraries);
+      })
+      .catch(e => {
+        if (!cancelled) setError(e.message || 'Failed to load trips');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useFocusEffect(load);
 
   if (loading) {
     return (
@@ -90,7 +84,14 @@ export default function MyTripsScreen() {
       <AppHeader title="My Trips" />
       {error ? (
         <View style={[styles.center, { flex: 1 }]}>
-          <Text style={{ color: colors.error }}>{error}</Text>
+          <Text style={{ color: colors.error, marginBottom: 12 }}>{error}</Text>
+          <TouchableOpacity
+            testID="trips-retry"
+            onPress={load}
+            style={[styles.retryBtn, { borderColor: colors.accent }]}
+          >
+            <Text style={{ color: colors.accent, fontWeight: '600' }}>Try again</Text>
+          </TouchableOpacity>
         </View>
       ) : isEmpty ? (
         <View style={[styles.center, { flex: 1 }]}>
@@ -159,37 +160,21 @@ export default function MyTripsScreen() {
               );
             }
 
-            // Standalone trip
+            // Standalone trip — render as an expandable ticket so it gets the
+            // same scannable QR as itinerary legs.
             const trip = item.data;
-            const transport = PROVIDER_TRANSPORT[trip.provider] ?? 'bus';
             return (
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.cardHeader}>
-                  <Text style={{ fontSize: 20 }}>
-                    {TRANSPORT_ICON[transport] ?? '🚐'}
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, flex: 1 }}>
+                    {new Date(trip.depart_at).toLocaleDateString()}
                   </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.route, { color: colors.text }]}>
-                      {trip.origin} → {trip.destination}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-                      {new Date(trip.depart_at).toLocaleDateString()}
-                    </Text>
-                  </View>
                   <Text style={[styles.price, { color: colors.cheapest }]}>
                     {format(parseFloat(trip.price_eur))}
                   </Text>
                 </View>
-                <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {trip.booking_ref}
-                  </Text>
-                  <Text style={[
-                    styles.status,
-                    { color: trip.status === 'confirmed' ? colors.cheapest : colors.textSecondary },
-                  ]}>
-                    {trip.status}
-                  </Text>
+                <View style={{ marginTop: 8 }}>
+                  <ExpandableLeg leg={trip} colors={colors} format={format} />
                 </View>
               </View>
             );
@@ -217,4 +202,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   status: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  retryBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,19 +19,18 @@ import {
   getCheckoutTrip,
   getCheckoutItinerary,
   getPassengers,
+  getBookingResult,
+  getCheckoutIdempotencyKey,
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
+import { cardToPaymentMethod } from '../../src/utils/payment';
 import { book } from '../../src/api/booking';
 import { bookItinerary } from '../../src/api/itinerary';
 
-function makeIdempotencyKey(): string {
-  return `bk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 export default function PaymentScreen() {
   const { colors } = useTheme();
-  const { format } = useCurrency();
+  const { format, currency } = useCurrency();
   const router = useRouter();
   const trip = getCheckoutTrip();
   const passengers = getPassengers();
@@ -42,9 +41,12 @@ export default function PaymentScreen() {
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
-  // One key per payment attempt series: a retry after a network timeout
-  // must not double-charge.
-  const idempotencyKey = useRef(makeIdempotencyKey()).current;
+
+  // If this checkout already produced a booking (e.g. user swiped back from
+  // confirmation), never show a live Pay button — bounce to the result.
+  useEffect(() => {
+    if (getBookingResult()) router.replace('/confirmation');
+  }, [router]);
 
   if (!trip && !itinerary) {
     return (
@@ -61,9 +63,7 @@ export default function PaymentScreen() {
   // search), so no client-side multiplication.
   const totalEur = itinerary ? itinerary.totalPriceEur : trip!.priceEur;
 
-  function validateCard(): string {
-    const digits = cardNumber.replace(/\s/g, '');
-    if (!/^\d{13,19}$/.test(digits)) return 'Enter a valid card number';
+  function validateExpiryAndCvc(): string {
     const m = expiry.match(/^(\d{2})\/(\d{2})$/);
     if (!m) return 'Enter expiry as MM/YY';
     const month = parseInt(m[1], 10);
@@ -77,11 +77,21 @@ export default function PaymentScreen() {
 
   async function handlePay() {
     setError('');
-    const cardError = validateCard();
+    // The entered card determines the (test) payment method actually used.
+    const card = cardToPaymentMethod(cardNumber);
+    if (card.error) {
+      setError(card.error);
+      return;
+    }
+    const cardError = validateExpiryAndCvc();
     if (cardError) {
       setError(cardError);
       return;
     }
+    const paymentMethodId = card.paymentMethodId!;
+    // Stable across re-entry into this screen within one checkout attempt.
+    const idempotencyKey = getCheckoutIdempotencyKey() ?? undefined;
+
     setLoading(true);
     try {
       let result;
@@ -89,7 +99,7 @@ export default function PaymentScreen() {
         result = await bookItinerary({
           legs: itinerary.legs,
           passengers,
-          paymentMethodId: 'pm_card_visa', // Stripe test token
+          paymentMethodId,
           origin: searchMeta?.from ?? itinerary.legs[0].origin,
           destination: searchMeta?.to ?? itinerary.legs[itinerary.legs.length - 1].destination,
           idempotencyKey,
@@ -97,6 +107,7 @@ export default function PaymentScreen() {
       } else {
         result = await book({
           trip: {
+            id: trip!.id,
             provider: trip!.provider,
             origin: trip!.origin,
             destination: trip!.destination,
@@ -106,7 +117,7 @@ export default function PaymentScreen() {
             deepLink: trip!.deepLink,
           },
           passengers,
-          paymentMethodId: 'pm_card_visa', // Stripe test token
+          paymentMethodId,
           idempotencyKey,
         });
       }
@@ -172,8 +183,14 @@ export default function PaymentScreen() {
           </View>
 
           <Text style={[styles.testNote, { color: colors.textSecondary }]}>
-            Test mode — no real charge will be made
+            Test mode — use a Stripe test card (e.g. 4242 4242 4242 4242). No real charge is made.
           </Text>
+
+          {currency.code !== 'EUR' ? (
+            <Text style={[styles.testNote, { color: colors.textSecondary }]}>
+              You will be charged €{totalEur.toFixed(2)}. Other currencies shown are estimates.
+            </Text>
+          ) : null}
 
           {error ? (
             <Text testID="error" style={{ color: colors.error }}>{error}</Text>
@@ -188,7 +205,9 @@ export default function PaymentScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Pay {format(totalEur)}</Text>
+              <Text style={styles.buttonText}>
+                Pay {format(totalEur)}{currency.code !== 'EUR' ? ' (est.)' : ''}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

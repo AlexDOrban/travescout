@@ -9,6 +9,14 @@ let _passengers: Passenger[] = [];
 let _bookingResult: BookingResponse | ItineraryBookingResponse | null = null;
 let _itinerary: CheckoutItinerary | null = null;
 let _mainLeg: Leg | null = null;
+// One idempotency key per checkout ATTEMPT (not per payment-screen mount), so
+// backing out and re-entering payment reuses the same key — the server then
+// replays the original booking instead of charging twice.
+let _idempotencyKey: string | null = null;
+
+function newIdempotencyKey(): string {
+  return `bk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function setCheckoutTrip(trip: RankedTrip, adults: number): void {
   _trip = trip;
@@ -19,6 +27,7 @@ export function setCheckoutTrip(trip: RankedTrip, adults: number): void {
   // otherwise take precedence over this trip at review/payment.
   _itinerary = null;
   _mainLeg = null;
+  _idempotencyKey = newIdempotencyKey();
 }
 
 export function getCheckoutTrip(): RankedTrip | null {
@@ -45,6 +54,10 @@ export function getBookingResult(): BookingResponse | ItineraryBookingResponse |
   return _bookingResult;
 }
 
+export function getCheckoutIdempotencyKey(): string | null {
+  return _idempotencyKey;
+}
+
 export function clearCheckout(): void {
   _trip = null;
   _adults = 1;
@@ -52,6 +65,7 @@ export function clearCheckout(): void {
   _bookingResult = null;
   _itinerary = null;
   _mainLeg = null;
+  _idempotencyKey = null;
 }
 
 export function setCheckoutItinerary(
@@ -73,6 +87,7 @@ export function setCheckoutItinerary(
   _adults = adults;
   _trip = null;
   _bookingResult = null;
+  _idempotencyKey = newIdempotencyKey();
 }
 
 export function getCheckoutItinerary(): CheckoutItinerary | null {

@@ -14,6 +14,7 @@ describe('book', () => {
   it('calls POST /book with booking request', async () => {
     const request = {
       trip: {
+        id: 'flixbus:leg-1',
         provider: 'flixbus',
         origin: 'LON',
         destination: 'PAR',

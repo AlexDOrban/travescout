@@ -34,9 +34,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // When a refresh fails mid-session the tokens are already gone;
-    // reflect that in the UI instead of staying "logged in".
-    setOnSessionExpired(() => setUser(null));
+    // When a refresh fails mid-session the tokens are already gone; reflect
+    // that in the UI and clear per-user state so nothing leaks to the next
+    // account on this device (same as an explicit logout).
+    setOnSessionExpired(() => {
+      clearCheckout();
+      clearSearchResults();
+      setUser(null);
+    });
     return () => setOnSessionExpired(null);
   }, []);
 

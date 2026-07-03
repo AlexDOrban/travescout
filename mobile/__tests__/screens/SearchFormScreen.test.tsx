@@ -138,20 +138,6 @@ describe('SearchScreen', () => {
     );
   });
 
-  it('shows error when return date is before departure', () => {
-    const { getByTestId } = render(<SearchScreen />);
-
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
-    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
-    fireEvent.changeText(getByTestId('return-date'), '2030-04-10');
-    fireEvent.press(getByTestId('search-btn'));
-
-    expect(getByTestId('error').props.children).toBe(
-      'Return date must be on or after departure',
-    );
-  });
-
   it('shows error when search API fails', async () => {
     mockSearch.mockRejectedValue(new Error('Network error'));
 
