@@ -1,7 +1,9 @@
 const db = require('../db');
 
-async function create(data) {
-  const { rows } = await db.query(
+// executor defaults to the pool; pass a transaction executor to enrol the
+// insert in a surrounding transaction (see db.withTransaction).
+async function create(data, executor = db) {
+  const { rows } = await executor.query(
     `INSERT INTO trips
        (user_id, provider, booking_ref, origin, destination,
         depart_at, arrive_at, return_at, price_eur, currency_display, status, raw_ticket_url,

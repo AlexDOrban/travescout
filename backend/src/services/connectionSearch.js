@@ -3,6 +3,7 @@ const rail = require('../providers/rail');
 const flixbusNorm = require('../normalizers/flixbus');
 const railNorm = require('../normalizers/rail');
 const { getHubsForCity, getHubByCode } = require('../data/hubs');
+const offerStore = require('./offerStore');
 
 const PROVIDERS = [
   { name: 'flixbus', provider: flixbus, normalizer: flixbusNorm, type: 'bus' },
@@ -103,6 +104,9 @@ async function searchConnections({ hub, cityCode, direction, dateTime, adults })
       destinationName: direction === 'to' ? (hubInfo?.name || trip.destination) : cityStationName,
     };
   });
+
+  // Record authoritative prices so booking can re-quote connection legs by id.
+  offerStore.remember(connections);
 
   return {
     connections,

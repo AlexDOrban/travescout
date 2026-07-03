@@ -15,7 +15,7 @@ async function search(params) {
 
   return [
     {
-      id: `rail-${params.from}-${params.to}-001`,
+      id: `rail-${params.from}-${params.to}-${params.departDate}-001`,
       fare_price: { amount: 39 * params.adults, currency: 'EUR' },
       departs_at: base.toISOString(),
       arrives_at: arrive.toISOString(),
@@ -26,7 +26,7 @@ async function search(params) {
       booking_url: `https://www.thetrainline.com/${params.from.toLowerCase()}-to-${params.to.toLowerCase()}`,
     },
     {
-      id: `rail-${params.from}-${params.to}-002`,
+      id: `rail-${params.from}-${params.to}-${params.departDate}-002`,
       fare_price: { amount: 55 * params.adults, currency: 'EUR' },
       departs_at: new Date(`${params.departDate}T11:30:00Z`).toISOString(),
       arrives_at: new Date(`${params.departDate}T14:15:00Z`).toISOString(),
@@ -46,7 +46,7 @@ async function book(_booking) {
   }
   const { randomUUID } = require('crypto');
   return {
-    bookingRef: `TL-${randomUUID().split('-')[0].toUpperCase()}`,
+    bookingRef: `TL-${randomUUID().replace(/-/g,'').slice(0,12).toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };

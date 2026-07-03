@@ -25,6 +25,7 @@ jest.mock('../src/providers/amadeus', () => ({
 const request = require('supertest');
 const createApp = require('../src/app');
 const db = require('../src/db');
+const offerStore = require('../src/services/offerStore');
 
 async function getAuthToken(app) {
   await request(app).post('/auth/register').send({
@@ -58,6 +59,11 @@ let app, token;
 beforeAll(async () => {
   app = createApp();
   token = await getAuthToken(app);
+});
+
+// Seed the authoritative offers each leg re-quotes against.
+beforeEach(() => {
+  offerStore.remember(MOCK_LEGS);
 });
 
 afterAll(async () => {

@@ -18,7 +18,9 @@ async function getOrCreateCustomer(userId, email, existingStripeCustomerId) {
 }
 
 // Manual capture: funds are only authorized here; capture() takes them after
-// the provider booking succeeds, cancel() releases them if it fails.
+// the booking is persisted, cancel() releases them if it fails.
+// idempotencyKey is namespaced per user by the caller so one user's key can
+// never collide with another's account-scoped Stripe key.
 async function authorize({ customerId, paymentMethodId, amountEur, description, idempotencyKey }) {
   const intent = await getClient().paymentIntents.create(
     {
@@ -45,4 +47,10 @@ async function cancel(intentId) {
   return getClient().paymentIntents.cancel(intentId);
 }
 
-module.exports = { getOrCreateCustomer, authorize, capture, cancel };
+async function refund(intentId, amountEur) {
+  const params = { payment_intent: intentId };
+  if (amountEur != null) params.amount = Math.round(amountEur * 100);
+  return getClient().refunds.create(params);
+}
+
+module.exports = { getOrCreateCustomer, authorize, capture, cancel, refund };

@@ -2,6 +2,7 @@ const { validateBookingBody } = require('../../src/validators/booking');
 
 const valid = {
   trip: {
+    id: 'flixbus:flixbus-LON-PAR-2026-04-15-001',
     provider: 'flixbus',
     origin: 'LON',
     destination: 'PAR',
@@ -36,8 +37,12 @@ describe('validateBookingBody', () => {
     expect(() => validateBookingBody({ ...valid, trip: { ...valid.trip, destination: undefined } })).toThrow();
   });
 
-  it('throws 400 if trip.departAt is missing', () => {
-    expect(() => validateBookingBody({ ...valid, trip: { ...valid.trip, departAt: undefined } })).toThrow();
+  it('throws 400 if trip.id is missing', () => {
+    expect(() => validateBookingBody({ ...valid, trip: { ...valid.trip, id: undefined } })).toThrow();
+  });
+
+  it('throws 400 if trip.priceEur is NaN', () => {
+    expect(() => validateBookingBody({ ...valid, trip: { ...valid.trip, priceEur: NaN } })).toThrow();
   });
 
   it('throws 400 if trip.priceEur is zero', () => {

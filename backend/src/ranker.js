@@ -4,6 +4,9 @@
  * @returns {import('./types/trip').RankedTrip[]}
  */
 function rankTrips(trips) {
+  // Drop malformed offers (missing/NaN price or duration) so one bad offer
+  // can't poison maxPrice/scores and hand every trip a NaN score.
+  trips = trips.filter(t => Number.isFinite(t.priceEur) && Number.isFinite(t.durationMins));
   if (trips.length === 0) return [];
 
   const maxPrice = Math.max(...trips.map(t => t.priceEur));

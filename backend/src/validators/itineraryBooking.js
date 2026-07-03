@@ -9,7 +9,7 @@ function validateItineraryBookingBody(body) {
   }
 
   legs.forEach((leg, i) => {
-    if (!leg.provider || !leg.origin || !leg.destination || !leg.departAt || !leg.arriveAt) {
+    if (!leg.id || !leg.provider || !leg.origin || !leg.destination) {
       throw Object.assign(new Error(`leg ${i} missing required fields`), { status: 400 });
     }
     if (!KNOWN_PROVIDERS.includes(leg.provider)) {

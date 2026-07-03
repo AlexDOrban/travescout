@@ -29,7 +29,14 @@ function makeRefreshToken(userId) {
   );
 }
 
+// Emails are case-insensitive; store and match on the normalized form so
+// John@x.com and john@x.com are the same account.
+function normalizeEmail(email) {
+  return String(email).trim().toLowerCase();
+}
+
 async function register(email, password) {
+  email = normalizeEmail(email);
   const existing = await User.findByEmail(email);
   if (existing) {
     const err = new Error('Email already registered');
@@ -57,6 +64,7 @@ async function register(email, password) {
 }
 
 async function login(email, password) {
+  email = normalizeEmail(email);
   const user = await User.findByEmail(email);
   if (!user) {
     const err = new Error('Invalid credentials');
@@ -102,4 +110,9 @@ async function logout(token) {
   await RefreshToken.remove(token);
 }
 
-module.exports = { register, login, refresh, logout };
+// Revoke every refresh token for a user ("log out everywhere").
+async function logoutAll(userId) {
+  await RefreshToken.removeAllForUser(userId);
+}
+
+module.exports = { register, login, refresh, logout, logoutAll };

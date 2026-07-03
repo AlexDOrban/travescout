@@ -15,7 +15,7 @@ async function search(params) {
 
   return [
     {
-      id: `flixbus-${params.from}-${params.to}-001`,
+      id: `flixbus-${params.from}-${params.to}-${params.departDate}-001`,
       price: { amount: 18 * params.adults, currency: 'EUR' },
       departure_time: base.toISOString(),
       arrival_time: arrive.toISOString(),
@@ -26,7 +26,7 @@ async function search(params) {
       deep_link: `https://flixbus.com/bus/${params.from.toLowerCase()}-${params.to.toLowerCase()}`,
     },
     {
-      id: `flixbus-${params.from}-${params.to}-002`,
+      id: `flixbus-${params.from}-${params.to}-${params.departDate}-002`,
       price: { amount: 24 * params.adults, currency: 'EUR' },
       departure_time: new Date(`${params.departDate}T14:00:00Z`).toISOString(),
       arrival_time: new Date(`${params.departDate}T18:30:00Z`).toISOString(),
@@ -46,7 +46,7 @@ async function book(_booking) {
   }
   const { randomUUID } = require('crypto');
   return {
-    bookingRef: `FB-${randomUUID().split('-')[0].toUpperCase()}`,
+    bookingRef: `FB-${randomUUID().replace(/-/g,'').slice(0,12).toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };

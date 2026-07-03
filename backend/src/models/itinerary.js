@@ -1,7 +1,7 @@
 const db = require('../db');
 
-async function create({ userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status }) {
-  const result = await db.query(
+async function create({ userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status }, executor = db) {
+  const result = await executor.query(
     `INSERT INTO itineraries (user_id, booking_ref, origin, destination, depart_at, arrive_at, total_price_eur, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
@@ -21,6 +21,7 @@ async function findByUserId(userId) {
            'origin', t.origin,
            'destination', t.destination,
            'depart_at', t.depart_at,
+           'arrive_at', t.arrive_at,
            'return_at', t.return_at,
            'price_eur', t.price_eur,
            'currency_display', t.currency_display,

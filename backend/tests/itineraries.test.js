@@ -23,6 +23,15 @@ jest.mock('../src/providers/amadeus', () => ({
 const request = require('supertest');
 const createApp = require('../src/app');
 const db = require('../src/db');
+const offerStore = require('../src/services/offerStore');
+
+const LIST_LEG = {
+  id: 'flixbus:list-1', provider: 'flixbus', transportType: 'bus',
+  origin: 'LON', destination: 'PAR', originName: 'London Victoria',
+  destinationName: 'Paris Bercy', departAt: '2030-07-01T08:00:00Z',
+  arriveAt: '2030-07-01T14:00:00Z', durationMins: 360, priceEur: 25,
+  stops: 0, deepLink: 'https://flixbus.com',
+};
 
 async function getAuthToken(app) {
   await request(app).post('/auth/register').send({
@@ -58,18 +67,13 @@ describe('GET /itineraries', () => {
   });
 
   it('returns itineraries after booking', async () => {
+    offerStore.remember([LIST_LEG]);
     // Book an itinerary first
     await request(app)
       .post('/book/itinerary')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        legs: [{
-          id: 'flixbus:list-1', provider: 'flixbus', transportType: 'bus',
-          origin: 'LON', destination: 'PAR', originName: 'London Victoria',
-          destinationName: 'Paris Bercy', departAt: '2030-07-01T08:00:00Z',
-          arriveAt: '2030-07-01T14:00:00Z', durationMins: 360, priceEur: 25,
-          stops: 0, deepLink: 'https://flixbus.com',
-        }],
+        legs: [LIST_LEG],
         passengers: [{ name: 'Test', email: 'test@test.com' }],
         paymentMethodId: 'pm_card_visa',
         origin: 'LON',
@@ -85,6 +89,8 @@ describe('GET /itineraries', () => {
     expect(res.body.itineraries[0]).toHaveProperty('booking_ref');
     expect(res.body.itineraries[0]).toHaveProperty('legs');
     expect(res.body.itineraries[0].legs.length).toBeGreaterThan(0);
+    // arrive_at now surfaces on legs (was previously dropped).
+    expect(res.body.itineraries[0].legs[0]).toHaveProperty('arrive_at');
   });
 
   it('returns 401 without auth', async () => {

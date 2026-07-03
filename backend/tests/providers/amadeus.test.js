@@ -61,13 +61,13 @@ describe('Amadeus provider (configured credentials)', () => {
     expect(results[0]).toHaveProperty('price.grandTotal');
   });
 
-  it('passes returnDate through for round-trip searches', async () => {
+  it('never passes returnDate (round trips unsupported → would double-price)', async () => {
     mockGet.mockResolvedValue({ data: [] });
 
     await search({ ...params, returnDate: '2026-04-20' });
 
-    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
-      returnDate: '2026-04-20',
+    expect(mockGet).toHaveBeenCalledWith(expect.not.objectContaining({
+      returnDate: expect.anything(),
     }));
   });
 

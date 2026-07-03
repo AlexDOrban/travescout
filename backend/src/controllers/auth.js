@@ -66,4 +66,14 @@ async function logout(req, res, next) {
   }
 }
 
-module.exports = { register, login, refresh, logout };
+// Authenticated: revoke all of the caller's refresh tokens (log out everywhere).
+async function logoutAll(req, res, next) {
+  try {
+    await AuthService.logoutAll(req.userId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { register, login, refresh, logout, logoutAll };

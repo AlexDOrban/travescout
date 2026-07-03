@@ -62,9 +62,11 @@ function stubOffers(params) {
     depart.setUTCHours(departHour, departMin, 0, 0);
     const arrive = new Date(depart.getTime() + flightMins * 60 * 1000);
     const dur = `PT${Math.floor(flightMins / 60)}H${flightMins % 60}M`;
-    const iso = d => d.toISOString().slice(0, 19);
+    // Emit full UTC ISO (with Z) so stub flight times are timezone-consistent
+    // with the bus/rail providers and unambiguous when stored/displayed.
+    const iso = d => d.toISOString();
     return {
-      id: `stub-${from}-${to}-${idSuffix}`,
+      id: `stub-${from}-${to}-${params.departDate}-${idSuffix}`,
       itineraries: [{
         duration: dur,
         segments: [{
@@ -95,11 +97,13 @@ async function search(params) {
   }
 
   try {
+    // Round trips are not supported yet: passing returnDate would return a
+    // combined-fare grandTotal we'd mis-attribute to a one-way outbound leg.
+    // Always search one-way until return legs are modelled end to end.
     const response = await getClient().shopping.flightOffersSearch.get({
       originLocationCode: params.from,
       destinationLocationCode: params.to,
       departureDate: params.departDate,
-      ...(params.returnDate ? { returnDate: params.returnDate } : {}),
       adults: params.adults,
       currencyCode: 'EUR',
       max: 10,
@@ -125,7 +129,7 @@ async function book(_booking) {
   }
   const { randomUUID } = require('crypto');
   return {
-    bookingRef: `AM-${randomUUID().split('-')[0].toUpperCase()}`,
+    bookingRef: `AM-${randomUUID().replace(/-/g,'').slice(0,12).toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };
