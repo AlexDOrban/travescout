@@ -1,3 +1,18 @@
+import React from 'react';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import ConnectionsScreen from '../../app/checkout/connections';
+import {
+  getCheckoutItinerary,
+  getCheckoutMainLeg,
+  setCheckoutItinerary,
+} from '../../src/stores/checkoutStore';
+import { getSearchMeta } from '../../src/stores/searchStore';
+import { searchConnections } from '../../src/api/itinerary';
+import {
+  needsDepartureConnection,
+  needsArrivalConnection,
+} from '../../src/utils/connections';
+
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
@@ -26,21 +41,6 @@ jest.mock('expo-router', () => ({
 
 jest.mock('../../src/api/itinerary');
 jest.mock('../../src/utils/connections');
-
-import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import ConnectionsScreen from '../../app/checkout/connections';
-import {
-  getCheckoutItinerary,
-  getCheckoutMainLeg,
-  setCheckoutItinerary,
-} from '../../src/stores/checkoutStore';
-import { getSearchMeta } from '../../src/stores/searchStore';
-import { searchConnections } from '../../src/api/itinerary';
-import {
-  needsDepartureConnection,
-  needsArrivalConnection,
-} from '../../src/utils/connections';
 
 const mockGetCheckoutItinerary = getCheckoutItinerary as jest.Mock;
 const mockGetCheckoutMainLeg = getCheckoutMainLeg as jest.Mock;

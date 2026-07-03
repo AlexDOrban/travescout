@@ -1,3 +1,8 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { TripCard } from '../../src/components/TripCard';
+import { RankedTrip } from '../../src/types/trip';
+
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
@@ -12,11 +17,6 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
     format: (n: number) => `€${n.toFixed(2)}`,
   }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { TripCard } from '../../src/components/TripCard';
-import { RankedTrip } from '../../src/types/trip';
 
 const MOCK_TRIP: RankedTrip = {
   id: 'amadeus:1',

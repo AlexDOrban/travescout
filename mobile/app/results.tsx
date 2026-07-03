@@ -51,7 +51,7 @@ export default function ResultsScreen() {
           style={[styles.banner, { backgroundColor: colors.error + '22', borderColor: colors.error }]}
         >
           <Text style={{ color: colors.error, fontSize: 13 }}>
-            Some providers didn't respond ({meta.providersFailed.join(', ')}) — results may be incomplete.
+            {`Some providers didn't respond (${meta.providersFailed.join(', ')}) — results may be incomplete.`}
           </Text>
         </View>
       )}

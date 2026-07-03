@@ -1,15 +1,15 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { useCurrency } from '../../src/contexts/CurrencyContext';
+import { AppHeader } from '../../src/components/AppHeader';
+
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: jest.fn(),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: jest.fn(),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { useTheme } from '../../src/contexts/ThemeContext';
-import { useCurrency } from '../../src/contexts/CurrencyContext';
-import { AppHeader } from '../../src/components/AppHeader';
 
 const mockToggle = jest.fn();
 const mockSetCurrency = jest.fn();

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Stack } from 'expo-router';
-import { Redirect } from 'expo-router';
+import { Stack , Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 

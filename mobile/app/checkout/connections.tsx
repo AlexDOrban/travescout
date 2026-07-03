@@ -102,6 +102,9 @@ export default function ConnectionsScreen() {
   }
 
   useEffect(() => {
+    // The loading flags flip synchronously here by design: both sections must
+    // show spinners on first paint, before the network round-trips resolve.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeparture();
     fetchArrival();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

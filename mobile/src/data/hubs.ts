@@ -6,7 +6,7 @@ export interface TransportHub {
   transferMins: number;
 }
 
-const HUBS: Array<{ cityCode: string; hubs: TransportHub[] }> = [
+const HUBS: { cityCode: string; hubs: TransportHub[] }[] = [
   { cityCode: 'LON', hubs: [
     { type: 'airport', code: 'LHR', name: 'London Heathrow', cityCode: 'LON', transferMins: 45 },
     { type: 'airport', code: 'STN', name: 'London Stansted', cityCode: 'LON', transferMins: 60 },

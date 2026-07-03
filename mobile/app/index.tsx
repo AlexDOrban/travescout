@@ -14,7 +14,7 @@ export default function Index() {
     } else {
       router.replace('/(auth)/login');
     }
-  }, [loading, user]);
+  }, [loading, user, router]);
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

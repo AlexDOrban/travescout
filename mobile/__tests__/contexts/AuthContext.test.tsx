@@ -1,16 +1,16 @@
-jest.mock('../../src/api/auth');
-jest.mock('../../src/api/storage', () => ({
-  getItem: jest.fn().mockResolvedValue(null),
-  setItem: jest.fn().mockResolvedValue(undefined),
-  deleteItem: jest.fn().mockResolvedValue(undefined),
-}));
-
 import React from 'react';
 import { render, act, fireEvent } from '@testing-library/react-native';
 import { Text, TouchableOpacity } from 'react-native';
 import { AuthProvider, useAuth } from '../../src/contexts/AuthContext';
 import * as authApi from '../../src/api/auth';
 import { getItem } from '../../src/api/storage';
+
+jest.mock('../../src/api/auth');
+jest.mock('../../src/api/storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+  deleteItem: jest.fn().mockResolvedValue(undefined),
+}));
 
 const mockLogin = authApi.login as jest.Mock;
 const mockRegister = authApi.register as jest.Mock;

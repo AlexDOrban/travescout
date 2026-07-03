@@ -1,3 +1,7 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { FilterChips } from '../../src/components/FilterChips';
+
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
@@ -7,10 +11,6 @@ jest.mock('../../src/contexts/ThemeContext', () => ({
     },
   }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { FilterChips } from '../../src/components/FilterChips';
 
 describe('FilterChips', () => {
   it('renders all transport and sort chips', () => {

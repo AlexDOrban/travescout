@@ -17,7 +17,6 @@ import { AppHeader } from '../../src/components/AppHeader';
 import { Stepper } from '../../src/components/Stepper';
 import {
   getCheckoutTrip,
-  getCheckoutAdults,
   getCheckoutItinerary,
   getPassengers,
   setBookingResult,
@@ -35,7 +34,6 @@ export default function PaymentScreen() {
   const { format } = useCurrency();
   const router = useRouter();
   const trip = getCheckoutTrip();
-  const adults = getCheckoutAdults();
   const passengers = getPassengers();
   const itinerary = getCheckoutItinerary();
   const searchMeta = getSearchMeta();

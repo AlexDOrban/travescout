@@ -18,7 +18,6 @@ import {
   getPassengers,
   getCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
-import type { CheckoutItinerary, Connection } from '../../src/types/itinerary';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();

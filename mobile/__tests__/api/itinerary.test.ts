@@ -1,9 +1,9 @@
+import { api } from '../../src/api/client';
+import { searchConnections, bookItinerary, getItineraries } from '../../src/api/itinerary';
+
 jest.mock('../../src/api/client', () => ({
   api: { get: jest.fn(), post: jest.fn() },
 }));
-
-import { api } from '../../src/api/client';
-import { searchConnections, bookItinerary, getItineraries } from '../../src/api/itinerary';
 
 const mockGet = api.get as jest.Mock;
 const mockPost = api.post as jest.Mock;

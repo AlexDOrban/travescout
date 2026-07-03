@@ -69,7 +69,7 @@ export default function MyTripsScreen() {
   const isEmpty = trips.length === 0 && itineraries.length === 0;
 
   // Build combined sections for SectionList
-  const sections: Array<{ title: string; data: SectionItem[] }> = [];
+  const sections: { title: string; data: SectionItem[] }[] = [];
 
   if (itineraries.length > 0) {
     sections.push({

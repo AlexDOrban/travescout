@@ -1,3 +1,7 @@
+import { api } from '../../src/api/client';
+import { setItem, deleteItem } from '../../src/api/storage';
+import { login, register, logout } from '../../src/api/auth';
+
 jest.mock('../../src/api/client', () => ({
   api: {
     post: jest.fn(),
@@ -9,10 +13,6 @@ jest.mock('../../src/api/storage', () => ({
   deleteItem: jest.fn().mockResolvedValue(undefined),
   getItem: jest.fn().mockResolvedValue(null),
 }));
-
-import { api } from '../../src/api/client';
-import { setItem, deleteItem } from '../../src/api/storage';
-import { login, register, logout } from '../../src/api/auth';
 
 const mockPost = api.post as jest.Mock;
 const mockSetItem = setItem as jest.Mock;

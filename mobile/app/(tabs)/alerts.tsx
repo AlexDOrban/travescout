@@ -12,7 +12,7 @@ export default function AlertsScreen() {
         <Text style={{ fontSize: 40 }}>🔔</Text>
         <Text style={[styles.title, { color: colors.text }]}>Price alerts coming soon</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          We'll notify you when prices drop on routes you follow.
+          {"We'll notify you when prices drop on routes you follow."}
         </Text>
       </View>
     </View>

@@ -1,3 +1,11 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import ResultsScreen from '../../app/results';
+import {
+  getSearchResults,
+  getSearchMeta,
+} from '../../src/stores/searchStore';
+
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
@@ -27,14 +35,6 @@ jest.mock('../../src/components/TripCard', () => ({
     return <TouchableOpacity testID={testID} onPress={onPress} />;
   },
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import ResultsScreen from '../../app/results';
-import {
-  getSearchResults,
-  getSearchMeta,
-} from '../../src/stores/searchStore';
 
 const mockGetResults = getSearchResults as jest.Mock;
 const mockGetMeta = getSearchMeta as jest.Mock;

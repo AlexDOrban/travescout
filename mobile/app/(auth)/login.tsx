@@ -73,7 +73,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <Link href="/register" style={s.link}>
-          Don't have an account? Sign up
+          {"Don't have an account? Sign up"}
         </Link>
       </View>
     </KeyboardAvoidingView>

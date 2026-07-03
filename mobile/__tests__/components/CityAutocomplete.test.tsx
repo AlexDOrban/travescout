@@ -1,3 +1,7 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { CityAutocomplete } from '../../src/components/CityAutocomplete';
+
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
@@ -7,10 +11,6 @@ jest.mock('../../src/contexts/ThemeContext', () => ({
     },
   }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { CityAutocomplete } from '../../src/components/CityAutocomplete';
 
 describe('CityAutocomplete', () => {
   it('renders label and input', () => {

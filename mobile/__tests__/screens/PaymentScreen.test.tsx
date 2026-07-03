@@ -1,3 +1,14 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import PaymentScreen from '../../app/checkout/payment';
+import {
+  getCheckoutTrip,
+  getCheckoutAdults,
+  getPassengers,
+  setBookingResult,
+} from '../../src/stores/checkoutStore';
+import { book } from '../../src/api/booking';
+
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/api/booking');
@@ -25,17 +36,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn() }),
   router: { canGoBack: () => false, back: jest.fn() },
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import PaymentScreen from '../../app/checkout/payment';
-import {
-  getCheckoutTrip,
-  getCheckoutAdults,
-  getPassengers,
-  setBookingResult,
-} from '../../src/stores/checkoutStore';
-import { book } from '../../src/api/booking';
 
 const mockGetTrip = getCheckoutTrip as jest.Mock;
 const mockGetAdults = getCheckoutAdults as jest.Mock;

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "lint": "eslint src tests"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +27,9 @@
     "stripe": "^20.4.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
     "jest": "^30.3.0",
     "supertest": "^7.2.2"
   }

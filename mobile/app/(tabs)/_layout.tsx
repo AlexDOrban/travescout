@@ -1,6 +1,5 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
-import { Redirect } from 'expo-router';
+import { Tabs , Redirect } from 'expo-router';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';

@@ -1,3 +1,9 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import TripDetailScreen from '../../app/trip/[id]';
+import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
+import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
+
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
@@ -23,12 +29,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: mockPush }),
   router: { canGoBack: () => false, back: jest.fn() },
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import TripDetailScreen from '../../app/trip/[id]';
-import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
-import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
 
 const mockGetById = getResultById as jest.Mock;
 const mockGetSearchMeta = getSearchMeta as jest.Mock;

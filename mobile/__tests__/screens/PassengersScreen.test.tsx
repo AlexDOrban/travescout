@@ -1,3 +1,12 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import PassengersScreen from '../../app/checkout/passengers';
+import {
+  getCheckoutTrip,
+  getCheckoutAdults,
+  setPassengers,
+} from '../../src/stores/checkoutStore';
+
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
@@ -22,15 +31,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
   router: { canGoBack: () => false, back: jest.fn() },
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import PassengersScreen from '../../app/checkout/passengers';
-import {
-  getCheckoutTrip,
-  getCheckoutAdults,
-  setPassengers,
-} from '../../src/stores/checkoutStore';
 
 const mockGetTrip = getCheckoutTrip as jest.Mock;
 const mockGetAdults = getCheckoutAdults as jest.Mock;

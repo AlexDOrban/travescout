@@ -1,9 +1,9 @@
+import { search } from '../../src/api/search';
+import { api } from '../../src/api/client';
+
 jest.mock('../../src/api/client', () => ({
   api: { get: jest.fn() },
 }));
-
-import { search } from '../../src/api/search';
-import { api } from '../../src/api/client';
 
 const mockGet = api.get as jest.Mock;
 

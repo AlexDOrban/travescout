@@ -31,17 +31,26 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [rates, setRates] = useState<Record<string, number>>(FALLBACK_RATES);
 
   useEffect(() => {
+    // Guard against state updates after unmount (also silences act() noise in tests).
+    let cancelled = false;
+
     fetch('https://api.frankfurter.app/latest?from=EUR&to=USD,GBP')
       .then(r => r.json())
-      .then(data => setRates({ EUR: 1, ...data.rates }))
+      .then(data => {
+        if (!cancelled) setRates({ EUR: 1, ...data.rates });
+      })
       .catch(() => {}); // keep fallback on network error
 
     getItem('currencyPreference')
       .then(stored => {
         const match = CURRENCIES.find(c => c.code === stored);
-        if (match) setCurrencyState(match);
+        if (match && !cancelled) setCurrencyState(match);
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function setCurrency(c: Currency): void {

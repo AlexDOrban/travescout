@@ -32,7 +32,7 @@ export interface ConnectionSearchResponse {
 
 export interface ItineraryBookingRequest {
   legs: Leg[];
-  passengers: Array<{ name: string; email: string }>;
+  passengers: { name: string; email: string }[];
   paymentMethodId: string;
   origin: string;
   destination: string;
@@ -56,7 +56,7 @@ export interface ItineraryBookingResponse {
   bookingRef: string;
   status: 'confirmed' | 'partially_failed';
   itinerary: BookedItinerary;
-  failedLegs?: Array<{ legOrder: number; error: string }>;
+  failedLegs?: { legOrder: number; error: string }[];
 }
 
 export interface ItinerariesResponse {

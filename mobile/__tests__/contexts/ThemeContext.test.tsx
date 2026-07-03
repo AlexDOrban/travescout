@@ -1,13 +1,13 @@
-jest.mock('../../src/api/storage', () => ({
-  getItem: jest.fn().mockResolvedValue(null),
-  setItem: jest.fn().mockResolvedValue(undefined),
-}));
-
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Text, TouchableOpacity } from 'react-native';
 import { ThemeProvider, useTheme } from '../../src/contexts/ThemeContext';
 import { getItem, setItem } from '../../src/api/storage';
+
+jest.mock('../../src/api/storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+}));
 
 const mockGetItem = getItem as jest.Mock;
 const mockSetItem = setItem as jest.Mock;

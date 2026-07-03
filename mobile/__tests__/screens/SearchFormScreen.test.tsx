@@ -1,3 +1,9 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import SearchScreen from '../../app/(tabs)/index';
+import { search } from '../../src/api/search';
+import { setSearchResults } from '../../src/stores/searchStore';
+
 jest.mock('../../src/api/search');
 jest.mock('../../src/stores/searchStore');
 
@@ -37,12 +43,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
   router: { canGoBack: () => false, back: jest.fn() },
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import SearchScreen from '../../app/(tabs)/index';
-import { search } from '../../src/api/search';
-import { setSearchResults } from '../../src/stores/searchStore';
 
 const mockSearch = search as jest.Mock;
 const mockSetResults = setSearchResults as jest.Mock;

@@ -1,11 +1,11 @@
+import { getItem, setItem, deleteItem } from '../../src/api/storage';
+import { api } from '../../src/api/client';
+
 jest.mock('../../src/api/storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
   deleteItem: jest.fn(),
 }));
-
-import { getItem, setItem, deleteItem } from '../../src/api/storage';
-import { api } from '../../src/api/client';
 
 const mockGetItem = getItem as jest.Mock;
 const mockFetch = jest.fn();

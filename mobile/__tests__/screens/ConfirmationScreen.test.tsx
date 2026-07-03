@@ -1,3 +1,8 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import ConfirmationScreen from '../../app/confirmation';
+import { getBookingResult, clearCheckout } from '../../src/stores/checkoutStore';
+
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({
@@ -21,11 +26,6 @@ const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import ConfirmationScreen from '../../app/confirmation';
-import { getBookingResult, clearCheckout } from '../../src/stores/checkoutStore';
 
 const mockGetBookingResult = getBookingResult as jest.Mock;
 const mockClearCheckout = clearCheckout as jest.Mock;

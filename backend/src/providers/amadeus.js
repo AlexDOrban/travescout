@@ -118,7 +118,7 @@ async function search(params) {
   }
 }
 
-async function book({ trip, passengers }) {
+async function book(_booking) {
   // Stub booking — must never run against real money in production.
   if (process.env.NODE_ENV === 'production' && process.env.MOCK_PROVIDERS !== 'true') {
     throw new Error('Amadeus booking is not implemented');

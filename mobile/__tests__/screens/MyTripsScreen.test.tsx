@@ -1,3 +1,9 @@
+import React from 'react';
+import { render, waitFor } from '@testing-library/react-native';
+import MyTripsScreen from '../../app/(tabs)/trips';
+import { getTrips } from '../../src/api/booking';
+import { getItineraries } from '../../src/api/itinerary';
+
 jest.mock('../../src/api/booking');
 jest.mock('../../src/api/itinerary');
 jest.mock('../../src/contexts/ThemeContext', () => ({
@@ -24,12 +30,6 @@ jest.mock('expo-router', () => ({
     React.useEffect(() => { cb(); }, []);
   },
 }));
-
-import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
-import MyTripsScreen from '../../app/(tabs)/trips';
-import { getTrips } from '../../src/api/booking';
-import { getItineraries } from '../../src/api/itinerary';
 
 const mockGetTrips = getTrips as jest.Mock;
 const mockGetItineraries = getItineraries as jest.Mock;

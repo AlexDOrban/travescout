@@ -4,3 +4,6 @@
 jest.mock('react-native-safe-area-context', () =>
   require('react-native-safe-area-context/jest/mock').default,
 );
+
+// Keep the api client from warning about a missing base URL in every suite.
+process.env.EXPO_PUBLIC_API_URL = 'http://localhost:3000';
