@@ -138,10 +138,32 @@ describe('Amadeus provider stub fallback', () => {
     const results = await provider.search(params);
     expect(results.length).toBeGreaterThanOrEqual(3);
 
-    // Subsequent searches skip the API entirely.
+    // Subsequent searches skip the API during the backoff window.
     mockGet.mockClear();
     await provider.search(params);
     expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('never serves stub flights in production', async () => {
+    const prevEnv = process.env.NODE_ENV;
+    const prevMock = process.env.MOCK_PROVIDERS;
+    process.env.NODE_ENV = 'production';
+    delete process.env.MOCK_PROVIDERS;
+    try {
+      const provider = loadWithEnv(undefined);
+      await expect(provider.search(params)).rejects.toThrow('Amadeus credentials are not configured');
+
+      // Auth rejection in production also fails closed instead of stubbing.
+      const rejecting = loadWithEnv('real_looking_but_invalid');
+      const authError = new Error('invalid_client');
+      authError.response = { statusCode: 401 };
+      mockGet.mockReset();
+      mockGet.mockRejectedValue(authError);
+      await expect(rejecting.search(params)).rejects.toThrow('invalid_client');
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevMock !== undefined) process.env.MOCK_PROVIDERS = prevMock;
+    }
   });
 });
 

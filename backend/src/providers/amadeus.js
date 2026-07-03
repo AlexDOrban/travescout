@@ -22,8 +22,16 @@ function credentialsMisconfigured() {
   return !id || PLACEHOLDER_RE.test(id);
 }
 
-// Once the API rejects our credentials there is no point retrying per search.
-let authRejected = false;
+// Stub inventory must never silently replace real flights in production;
+// there it's a hard failure (surfaced via providersFailed), same gate as book().
+function stubAllowed() {
+  return process.env.NODE_ENV !== 'production' || process.env.MOCK_PROVIDERS === 'true';
+}
+
+// After the API rejects our credentials, back off instead of hammering it —
+// but retry periodically so a fixed key or transient 401 recovers without a restart.
+const AUTH_RETRY_MS = 10 * 60 * 1000;
+let authRejectedUntil = 0;
 
 function airportFor(cityCode) {
   const airport = getHubsForCity(cityCode).find(h => h.type === 'airport');
@@ -81,8 +89,9 @@ function stubOffers(params) {
  * @returns {Promise<Object[]>} Raw Amadeus flight offer objects
  */
 async function search(params) {
-  if (credentialsMisconfigured() || authRejected) {
-    return stubOffers(params);
+  if (credentialsMisconfigured() || Date.now() < authRejectedUntil) {
+    if (stubAllowed()) return stubOffers(params);
+    throw new Error('Amadeus credentials are not configured');
   }
 
   try {
@@ -99,9 +108,11 @@ async function search(params) {
   } catch (e) {
     const status = e.response?.statusCode;
     if (e.constructor?.name === 'AuthenticationError' || status === 401) {
-      console.warn('[amadeus] API credentials rejected — serving stub flight data until restart');
-      authRejected = true;
-      return stubOffers(params);
+      authRejectedUntil = Date.now() + AUTH_RETRY_MS;
+      if (stubAllowed()) {
+        console.warn('[amadeus] API credentials rejected — serving stub flights, retrying API in 10 min');
+        return stubOffers(params);
+      }
     }
     throw e;
   }
