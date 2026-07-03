@@ -9,9 +9,13 @@ Amadeus.mockImplementation(() => ({
   },
 }));
 
+// Real credentials present → provider must call the API, not the stub.
+process.env.AMADEUS_CLIENT_ID = 'real_client_id_for_tests';
+process.env.AMADEUS_CLIENT_SECRET = 'real_secret';
+
 const { search } = require('../../src/providers/amadeus');
 
-describe('Amadeus provider', () => {
+describe('Amadeus provider (configured credentials)', () => {
   const params = { from: 'LON', to: 'PAR', departDate: '2026-04-15', adults: 1 };
 
   beforeEach(() => {
@@ -74,10 +78,70 @@ describe('Amadeus provider', () => {
     expect(results).toEqual([]);
   });
 
-  it('throws when Amadeus API call fails', async () => {
+  it('throws when Amadeus API call fails with a non-auth error', async () => {
     mockGet.mockRejectedValue(new Error('API error'));
 
     await expect(search(params)).rejects.toThrow('API error');
+  });
+});
+
+describe('Amadeus provider stub fallback', () => {
+  const params = { from: 'LON', to: 'PAR', departDate: '2026-07-20', adults: 2 };
+
+  function loadWithEnv(clientId) {
+    let provider;
+    jest.isolateModules(() => {
+      if (clientId === undefined) delete process.env.AMADEUS_CLIENT_ID;
+      else process.env.AMADEUS_CLIENT_ID = clientId;
+      provider = require('../../src/providers/amadeus');
+    });
+    return provider;
+  }
+
+  afterAll(() => {
+    process.env.AMADEUS_CLIENT_ID = 'real_client_id_for_tests';
+  });
+
+  it('serves normalizer-compatible stub offers when credentials are missing', async () => {
+    const provider = loadWithEnv(undefined);
+    const results = await provider.search(params);
+
+    expect(results.length).toBeGreaterThanOrEqual(3);
+    for (const offer of results) {
+      expect(offer).toHaveProperty('id');
+      expect(offer.itineraries[0].segments[0].departure).toHaveProperty('iataCode');
+      expect(offer.itineraries[0].segments[0].departure).toHaveProperty('at');
+      expect(offer.itineraries[0].duration).toMatch(/^PT\d+H\d+M$/);
+      expect(parseFloat(offer.price.grandTotal)).toBeGreaterThan(0);
+    }
+    // City codes are mapped to real airport hubs.
+    expect(results[0].itineraries[0].segments[0].departure.iataCode).toBe('LHR');
+    expect(results[0].itineraries[0].segments[0].arrival.iataCode).toBe('CDG');
+  });
+
+  it('serves stub offers for placeholder credentials without calling the API', async () => {
+    mockGet.mockReset();
+    const provider = loadWithEnv('sandbox_client_id');
+    const results = await provider.search(params);
+
+    expect(results.length).toBeGreaterThanOrEqual(3);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('falls back to stub offers after the API rejects credentials', async () => {
+    const provider = loadWithEnv('real_looking_but_invalid');
+    const authError = new Error('invalid_client');
+    authError.response = { statusCode: 401 };
+    mockGet.mockReset();
+    mockGet.mockRejectedValue(authError);
+
+    const results = await provider.search(params);
+    expect(results.length).toBeGreaterThanOrEqual(3);
+
+    // Subsequent searches skip the API entirely.
+    mockGet.mockClear();
+    await provider.search(params);
+    expect(mockGet).not.toHaveBeenCalled();
   });
 });
 
