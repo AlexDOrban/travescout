@@ -24,7 +24,7 @@ import {
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
-import { cardToPaymentMethod } from '../../src/utils/payment';
+import { cardToPaymentMethod, formatCardNumber, formatExpiry, formatCvc } from '../../src/utils/payment';
 import { book } from '../../src/api/booking';
 import { bookItinerary } from '../../src/api/itinerary';
 
@@ -150,10 +150,11 @@ export default function PaymentScreen() {
               testID="card-number"
               style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
               value={cardNumber}
-              onChangeText={setCardNumber}
+              onChangeText={t => setCardNumber(formatCardNumber(t))}
               placeholder="4242 4242 4242 4242"
               placeholderTextColor={colors.textSecondary}
               keyboardType="number-pad"
+              maxLength={23}
             />
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -162,9 +163,11 @@ export default function PaymentScreen() {
                   testID="card-expiry"
                   style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
                   value={expiry}
-                  onChangeText={setExpiry}
+                  onChangeText={t => setExpiry(formatExpiry(t, expiry))}
                   placeholder="MM/YY"
                   placeholderTextColor={colors.textSecondary}
+                  keyboardType="number-pad"
+                  maxLength={5}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -173,10 +176,11 @@ export default function PaymentScreen() {
                   testID="card-cvc"
                   style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
                   value={cvc}
-                  onChangeText={setCvc}
+                  onChangeText={t => setCvc(formatCvc(t))}
                   placeholder="123"
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="number-pad"
+                  maxLength={4}
                 />
               </View>
             </View>
