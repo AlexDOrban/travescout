@@ -17,13 +17,7 @@ import { CityAutocomplete } from '../../src/components/CityAutocomplete';
 import { search } from '../../src/api/search';
 import { setSearchResults } from '../../src/stores/searchStore';
 import type { City } from '../../src/data/cities';
-
-function formatDateInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-}
+import { formatDateInput } from '../../src/utils/date';
 
 export default function SearchScreen() {
   const { colors } = useTheme();
@@ -114,9 +108,11 @@ export default function SearchScreen() {
             },
           ]}
           value={departDate}
-          onChangeText={t => setDepartDate(formatDateInput(t))}
+          onChangeText={t => setDepartDate(formatDateInput(t, departDate))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={colors.textSecondary}
+          keyboardType="number-pad"
+          maxLength={10}
         />
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Passengers</Text>
