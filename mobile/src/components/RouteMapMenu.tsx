@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -17,20 +17,20 @@ import {
   type MapSegment,
   type MapTravelMode,
 } from '../utils/maps';
+import { getTransferPrefs, saveTransferPrefs } from '../utils/transferPrefs';
+import { TravelModeChips } from './TravelModeChips';
 
 interface Props {
   /** Ordered legs of the trip; flight legs are shown as airport access only. */
   legs: RouteLegInput[];
   colors: ColorPalette;
+  /**
+   * Booking ref to load/persist the transfer details under, so addresses and
+   * mode chosen at checkout (or edited here) stick for the whole trip.
+   */
+  storageKey?: string;
   testID?: string;
 }
-
-const MODES: { key: MapTravelMode; label: string }[] = [
-  { key: 'transit', label: '🚇 Transit' },
-  { key: 'walking', label: '🚶 Walk' },
-  { key: 'bicycling', label: '🚲 Bike' },
-  { key: 'driving', label: '🚗 Car' },
-];
 
 function segmentTitle(seg: MapSegment): string {
   if (seg.kind === 'to-airport') {
@@ -48,11 +48,37 @@ function segmentTitle(seg: MapSegment): string {
 // replaced by directions to the departure airport and from the arrival one.
 // The user can type where they actually leave from and their final
 // destination (e.g. a hotel), and pick the travel mode for the links.
-export function RouteMapMenu({ legs, colors, testID }: Props) {
+export function RouteMapMenu({ legs, colors, storageKey, testID }: Props) {
   const [open, setOpen] = useState(false);
   const [startAddress, setStartAddress] = useState('');
   const [endAddress, setEndAddress] = useState('');
   const [mode, setMode] = useState<MapTravelMode>('transit');
+
+  useEffect(() => {
+    if (!storageKey) return;
+    let cancelled = false;
+    getTransferPrefs(storageKey).then(prefs => {
+      if (!prefs || cancelled) return;
+      setStartAddress(prefs.startAddress);
+      setEndAddress(prefs.endAddress);
+      setMode(prefs.travelMode);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
+
+  function update(next: { startAddress?: string; endAddress?: string; mode?: MapTravelMode }) {
+    const merged = {
+      startAddress: next.startAddress ?? startAddress,
+      endAddress: next.endAddress ?? endAddress,
+      travelMode: next.mode ?? mode,
+    };
+    if (next.startAddress !== undefined) setStartAddress(next.startAddress);
+    if (next.endAddress !== undefined) setEndAddress(next.endAddress);
+    if (next.mode !== undefined) setMode(next.mode);
+    if (storageKey) void saveTransferPrefs(storageKey, merged);
+  }
 
   const segments = groundSegments(legs, { startAddress, endAddress });
   if (segments.length === 0) return null;
@@ -115,7 +141,7 @@ export function RouteMapMenu({ legs, colors, testID }: Props) {
               testID="route-start-address"
               style={inputStyle}
               value={startAddress}
-              onChangeText={setStartAddress}
+              onChangeText={v => update({ startAddress: v })}
               placeholder="Leaving from (hotel, address…)"
               placeholderTextColor={colors.textSecondary}
             />
@@ -123,36 +149,16 @@ export function RouteMapMenu({ legs, colors, testID }: Props) {
               testID="route-end-address"
               style={inputStyle}
               value={endAddress}
-              onChangeText={setEndAddress}
+              onChangeText={v => update({ endAddress: v })}
               placeholder="Final destination (hotel, address…)"
               placeholderTextColor={colors.textSecondary}
             />
-            <View style={styles.modeRow}>
-              {MODES.map(m => (
-                <TouchableOpacity
-                  key={m.key}
-                  testID={`route-mode-${m.key}`}
-                  onPress={() => setMode(m.key)}
-                  style={[
-                    styles.modeChip,
-                    { borderColor: mode === m.key ? colors.accent : colors.border },
-                    mode === m.key && { backgroundColor: colors.background },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: mode === m.key }}
-                >
-                  <Text
-                    style={{
-                      color: mode === m.key ? colors.accent : colors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: mode === m.key ? '700' : '400',
-                    }}
-                  >
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TravelModeChips
+              mode={mode}
+              onChange={m => update({ mode: m })}
+              colors={colors}
+              testIDPrefix="route-mode"
+            />
           </View>
 
           {segments.map((seg, i) => (
@@ -217,17 +223,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 13,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  modeChip: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
   segment: {
     paddingHorizontal: 14,

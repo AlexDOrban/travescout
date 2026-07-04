@@ -21,9 +21,11 @@ import {
   getPassengers,
   getBookingResult,
   getCheckoutIdempotencyKey,
+  getCheckoutTransfer,
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
+import { saveTransferPrefs } from '../../src/utils/transferPrefs';
 import { cardToPaymentMethod, formatCardNumber, formatExpiry, formatCvc } from '../../src/utils/payment';
 import { book } from '../../src/api/booking';
 import { bookItinerary } from '../../src/api/itinerary';
@@ -122,6 +124,13 @@ export default function PaymentScreen() {
         });
       }
       setBookingResult(result);
+      // Keep the "getting there" details reachable from My Trips, keyed by
+      // the booking ref. Fire-and-forget: a failed write must not block the
+      // confirmation screen.
+      const transfer = getCheckoutTransfer();
+      if (transfer.startAddress || transfer.endAddress || transfer.travelMode !== 'transit') {
+        void saveTransferPrefs(result.bookingRef, transfer);
+      }
       // replace: back-swiping from confirmation must not land on a live Pay button
       router.replace('/confirmation');
     } catch (e: any) {
@@ -141,7 +150,7 @@ export default function PaymentScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <AppHeader title="Payment" showBack />
-        <Stepper steps={['Passengers', 'Review', 'Pay']} current={2} colors={colors} />
+        <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={3} colors={colors} />
         <View style={styles.content}>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Card Details</Text>

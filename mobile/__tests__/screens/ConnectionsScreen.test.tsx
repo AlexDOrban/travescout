@@ -167,7 +167,7 @@ describe('ConnectionsScreen', () => {
     expect(getByText('Your route departs and arrives at your search cities')).toBeTruthy();
   });
 
-  it('navigates to passengers on continue press', async () => {
+  it('navigates to transfer on continue press', async () => {
     mockNeedsDeparture.mockReturnValue(false);
     mockNeedsArrival.mockReturnValue(false);
 
@@ -180,7 +180,7 @@ describe('ConnectionsScreen', () => {
       undefined,
       undefined,
     );
-    expect(mockPush).toHaveBeenCalledWith('/checkout/passengers');
+    expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
   });
 
   it('shows per-section error on API failure with retry button', async () => {

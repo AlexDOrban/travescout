@@ -1,7 +1,9 @@
 import React from 'react';
 import { Linking } from 'react-native';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteMapMenu } from '../../src/components/RouteMapMenu';
+import { getTransferPrefs, saveTransferPrefs } from '../../src/utils/transferPrefs';
 import { DARK } from '../../src/constants/colors';
 
 jest.spyOn(Linking, 'openURL').mockResolvedValue(true as any);
@@ -9,7 +11,10 @@ const mockOpen = Linking.openURL as jest.Mock;
 
 const FLIGHT_LEGS = [{ origin: 'LHR', destination: 'CDG', transportType: 'flight' }];
 
-beforeEach(() => mockOpen.mockClear());
+beforeEach(async () => {
+  mockOpen.mockClear();
+  await AsyncStorage.clear();
+});
 
 function openMenu(ui: ReturnType<typeof render>) {
   fireEvent.press(ui.getByTestId('route-map-toggle'));
@@ -45,5 +50,34 @@ describe('RouteMapMenu', () => {
     openMenu(ui);
     fireEvent.press(ui.getByTestId('route-segment-0-apple'));
     expect(mockOpen).toHaveBeenCalledWith(expect.stringContaining('dirflg=r'));
+  });
+
+  it('prefills saved transfer prefs for its storage key', async () => {
+    await saveTransferPrefs('BK-1', {
+      startAddress: 'Savoy Hotel, London',
+      endAddress: 'Hôtel Lutetia, Paris',
+      travelMode: 'walking',
+    });
+    const ui = render(<RouteMapMenu legs={FLIGHT_LEGS} colors={DARK} storageKey="BK-1" />);
+    openMenu(ui);
+    await waitFor(() =>
+      expect(ui.getByText(/Savoy Hotel, London → London Heathrow, UK/)).toBeTruthy(),
+    );
+    fireEvent.press(ui.getByTestId('route-segment-0-google'));
+    expect(mockOpen).toHaveBeenCalledWith(expect.stringContaining('travelmode=walking'));
+  });
+
+  it('persists edits so they survive a remount', async () => {
+    const ui = render(<RouteMapMenu legs={FLIGHT_LEGS} colors={DARK} storageKey="BK-2" />);
+    openMenu(ui);
+    fireEvent.changeText(ui.getByTestId('route-start-address'), 'The Ritz, London');
+    fireEvent.press(ui.getByTestId('route-mode-driving'));
+    await waitFor(async () =>
+      expect(await getTransferPrefs('BK-2')).toEqual({
+        startAddress: 'The Ritz, London',
+        endAddress: '',
+        travelMode: 'driving',
+      }),
+    );
   });
 });

@@ -132,7 +132,7 @@ export default function ConnectionsScreen() {
     const depLeg = skipDeparture ? undefined : (selectedDeparture ?? undefined);
     const arrLeg = skipArrival ? undefined : (selectedArrival ?? undefined);
     setCheckoutItinerary(mainLeg, adults, depLeg, arrLeg);
-    router.push('/checkout/passengers');
+    router.push('/checkout/transfer');
   }
 
   function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {

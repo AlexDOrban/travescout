@@ -9,6 +9,8 @@ import {
   clearCheckout,
   setCheckoutItinerary,
   getCheckoutItinerary,
+  setCheckoutTransfer,
+  getCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
 import type { Leg } from '../../src/types/itinerary';
 
@@ -102,5 +104,28 @@ describe('Checkout Store - Itinerary', () => {
     setCheckoutItinerary(makeLeg(), 1);
     clearCheckout();
     expect(getCheckoutItinerary()).toBeNull();
+  });
+
+  it('stores and retrieves ground-transfer details', () => {
+    setCheckoutTransfer({ startAddress: 'Savoy Hotel', endAddress: 'Lutetia', travelMode: 'walking' });
+    expect(getCheckoutTransfer()).toEqual({
+      startAddress: 'Savoy Hotel',
+      endAddress: 'Lutetia',
+      travelMode: 'walking',
+    });
+  });
+
+  it('defaults transfer to empty addresses with transit mode', () => {
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
+  });
+
+  it('resets transfer when a new trip or itinerary starts checkout', () => {
+    setCheckoutTransfer({ startAddress: 'X', endAddress: 'Y', travelMode: 'driving' });
+    setCheckoutTrip(MOCK_TRIP, 1);
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
+
+    setCheckoutTransfer({ startAddress: 'X', endAddress: 'Y', travelMode: 'driving' });
+    setCheckoutItinerary(makeLeg(), 1);
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
   });
 });

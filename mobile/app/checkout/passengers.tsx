@@ -77,7 +77,7 @@ export default function PassengersScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <AppHeader title="Passenger Details" showBack />
-        <Stepper steps={['Passengers', 'Review', 'Pay']} current={0} colors={colors} />
+        <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={1} colors={colors} />
         <View style={styles.content}>
           <Text style={[styles.route, { color: colors.text }]}>
             {routeOrigin} → {routeDestination}

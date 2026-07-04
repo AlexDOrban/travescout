@@ -170,6 +170,7 @@ export default function MyTripsScreen() {
                             }))
                           : [{ origin: iti.origin, destination: iti.destination }]
                       }
+                      storageKey={iti.booking_ref}
                       colors={colors}
                     />
                   </View>
@@ -202,6 +203,7 @@ export default function MyTripsScreen() {
                         transportType: PROVIDER_TRANSPORT[trip.provider],
                       },
                     ]}
+                    storageKey={trip.booking_ref}
                     colors={colors}
                   />
                 </View>

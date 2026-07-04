@@ -94,12 +94,12 @@ describe('TripDetailScreen', () => {
     expect(getByTestId('detail-provider').props.children).toBe('amadeus');
   });
 
-  it('Book Now sets checkout trip and navigates to passengers', () => {
+  it('Book Now sets checkout trip and navigates to transfer', () => {
     mockGetById.mockReturnValue(MOCK_TRIP);
     const { getByTestId } = render(<TripDetailScreen />);
     fireEvent.press(getByTestId('book-btn'));
     expect(mockSetCheckoutTrip).toHaveBeenCalledWith(MOCK_TRIP, 1);
-    expect(mockPush).toHaveBeenCalledWith('/checkout/passengers');
+    expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
   });
 
   it('navigates to connections screen when Add Connections pressed', () => {

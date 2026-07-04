@@ -101,7 +101,7 @@ export default function TripDetailScreen() {
         style={[styles.button, { backgroundColor: colors.accent }]}
         onPress={() => {
           setCheckoutTrip(trip, meta?.adults ?? 1);
-          router.push('/checkout/passengers');
+          router.push('/checkout/transfer');
         }}
       >
         <Text style={styles.buttonText}>Book Now</Text>

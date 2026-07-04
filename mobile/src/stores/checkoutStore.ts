@@ -1,7 +1,10 @@
 import { RankedTrip } from '../types/trip';
 import { Passenger, BookingResponse } from '../types/booking';
 import type { Leg, CheckoutItinerary, ItineraryBookingResponse } from '../types/itinerary';
+import type { TransferPrefs } from '../utils/transferPrefs';
 import { computeConnections } from '../utils/connections';
+
+const EMPTY_TRANSFER: TransferPrefs = { startAddress: '', endAddress: '', travelMode: 'transit' };
 
 let _trip: RankedTrip | null = null;
 let _adults: number = 1;
@@ -9,6 +12,7 @@ let _passengers: Passenger[] = [];
 let _bookingResult: BookingResponse | ItineraryBookingResponse | null = null;
 let _itinerary: CheckoutItinerary | null = null;
 let _mainLeg: Leg | null = null;
+let _transfer: TransferPrefs = EMPTY_TRANSFER;
 // One idempotency key per checkout ATTEMPT (not per payment-screen mount), so
 // backing out and re-entering payment reuses the same key — the server then
 // replays the original booking instead of charging twice.
@@ -27,6 +31,7 @@ export function setCheckoutTrip(trip: RankedTrip, adults: number): void {
   // otherwise take precedence over this trip at review/payment.
   _itinerary = null;
   _mainLeg = null;
+  _transfer = EMPTY_TRANSFER;
   _idempotencyKey = newIdempotencyKey();
 }
 
@@ -65,7 +70,16 @@ export function clearCheckout(): void {
   _bookingResult = null;
   _itinerary = null;
   _mainLeg = null;
+  _transfer = EMPTY_TRANSFER;
   _idempotencyKey = null;
+}
+
+export function setCheckoutTransfer(transfer: TransferPrefs): void {
+  _transfer = transfer;
+}
+
+export function getCheckoutTransfer(): TransferPrefs {
+  return _transfer;
 }
 
 export function setCheckoutItinerary(
@@ -87,6 +101,7 @@ export function setCheckoutItinerary(
   _adults = adults;
   _trip = null;
   _bookingResult = null;
+  _transfer = EMPTY_TRANSFER;
   _idempotencyKey = newIdempotencyKey();
 }
 

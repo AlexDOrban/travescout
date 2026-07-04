@@ -36,7 +36,7 @@ export default function ReviewScreen() {
     return (
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <AppHeader title="Review Booking" showBack />
-        <Stepper steps={['Passengers', 'Review', 'Pay']} current={1} colors={colors} />
+        <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={2} colors={colors} />
         <View style={styles.content}>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text testID="itinerary-header" style={[styles.cardTitle, { color: colors.text }]}>
@@ -122,7 +122,7 @@ export default function ReviewScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="Review Booking" showBack />
-      <Stepper steps={['Passengers', 'Review', 'Pay']} current={1} colors={colors} />
+      <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={2} colors={colors} />
       <View style={styles.content}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={{ fontSize: 24 }}>{TRANSPORT_ICON[trip.transportType] ?? '🚐'}</Text>

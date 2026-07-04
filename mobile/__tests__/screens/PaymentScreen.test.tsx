@@ -6,11 +6,14 @@ import {
   getCheckoutAdults,
   getPassengers,
   getCheckoutIdempotencyKey,
+  getCheckoutTransfer,
   setBookingResult,
 } from '../../src/stores/checkoutStore';
 import { book } from '../../src/api/booking';
+import { saveTransferPrefs } from '../../src/utils/transferPrefs';
 
 jest.mock('../../src/stores/checkoutStore');
+jest.mock('../../src/utils/transferPrefs');
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/api/booking');
 jest.mock('../../src/contexts/ThemeContext', () => ({
@@ -62,6 +65,9 @@ beforeEach(() => {
   mockGetAdults.mockReturnValue(1);
   mockGetPassengers.mockReturnValue([{ name: 'John Doe', email: 'john@test.com' }]);
   (getCheckoutIdempotencyKey as jest.Mock).mockReturnValue('bk_test_key');
+  (getCheckoutTransfer as jest.Mock).mockReturnValue({
+    startAddress: '', endAddress: '', travelMode: 'transit',
+  });
 });
 
 describe('PaymentScreen', () => {
@@ -111,6 +117,34 @@ describe('PaymentScreen', () => {
       expect(mockSetBookingResult).toHaveBeenCalledWith(bookingResponse);
       expect(mockReplace).toHaveBeenCalledWith('/confirmation');
     });
+  });
+
+  it('persists ground-transfer prefs under the booking ref on success', async () => {
+    (getCheckoutTransfer as jest.Mock).mockReturnValue({
+      startAddress: 'Savoy Hotel, London', endAddress: '', travelMode: 'transit',
+    });
+    mockBook.mockResolvedValue({ bookingRef: 'FB-123', status: 'confirmed', trip: {} });
+
+    const { getByTestId } = render(<PaymentScreen />);
+    fillValidCard(getByTestId);
+    fireEvent.press(getByTestId('pay-btn'));
+
+    await waitFor(() => {
+      expect(saveTransferPrefs).toHaveBeenCalledWith('FB-123', {
+        startAddress: 'Savoy Hotel, London', endAddress: '', travelMode: 'transit',
+      });
+    });
+  });
+
+  it('does not persist transfer prefs when nothing was entered', async () => {
+    mockBook.mockResolvedValue({ bookingRef: 'FB-123', status: 'confirmed', trip: {} });
+
+    const { getByTestId } = render(<PaymentScreen />);
+    fillValidCard(getByTestId);
+    fireEvent.press(getByTestId('pay-btn'));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/confirmation'));
+    expect(saveTransferPrefs).not.toHaveBeenCalled();
   });
 
   it('shows validation error and skips booking when card details are invalid', () => {
