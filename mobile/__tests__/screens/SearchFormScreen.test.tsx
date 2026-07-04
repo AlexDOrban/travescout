@@ -112,17 +112,14 @@ describe('SearchScreen', () => {
     expect(getByTestId('error').props.children).toBe('Departure date must be YYYY-MM-DD');
   });
 
-  it('shows error on invalid calendar date', () => {
+  // Impossible calendar dates can no longer be typed: the smart input clamps
+  // the day to the month's real length as you type (Feb 30 -> Feb 28).
+  it('clamps an impossible calendar date while typing', () => {
     const { getByTestId } = render(<SearchScreen />);
 
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
     fireEvent.changeText(getByTestId('depart-date'), '2030-02-30');
-    fireEvent.press(getByTestId('search-btn'));
 
-    expect(getByTestId('error').props.children).toBe(
-      'Departure date is not a valid calendar date',
-    );
+    expect(getByTestId('depart-date').props.value).toBe('2030-02-28');
   });
 
   it('shows error on past departure date', () => {
