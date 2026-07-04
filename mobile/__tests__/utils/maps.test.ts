@@ -1,4 +1,12 @@
-import { resolveStopLabel, routeStops, googleMapsUrl, appleMapsUrl } from '../../src/utils/maps';
+import {
+  resolveStopLabel,
+  routeStops,
+  googleMapsUrl,
+  appleMapsUrl,
+  groundSegments,
+  segmentGoogleUrl,
+  segmentAppleUrl,
+} from '../../src/utils/maps';
 
 describe('resolveStopLabel', () => {
   it('resolves an airport hub code to its name + country', () => {
@@ -69,5 +77,70 @@ describe('appleMapsUrl', () => {
 
   it('accepts an explicit travel mode', () => {
     expect(appleMapsUrl(['A', 'B'], 'driving')).toContain('dirflg=d');
+  });
+});
+
+describe('groundSegments', () => {
+  it('merges consecutive ground legs into one segment and adds no airport segments', () => {
+    const segments = groundSegments([
+      { origin: 'BER', destination: 'LON', transportType: 'train' },
+      { origin: 'LON', destination: 'PAR', transportType: 'bus' },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'ground', stops: ['Berlin, DE', 'London, UK', 'Paris, FR'] },
+    ]);
+  });
+
+  it('replaces a flight leg with to-airport and from-airport segments', () => {
+    const segments = groundSegments([
+      { origin: 'BER', destination: 'LON', transportType: 'train' },
+      { origin: 'LHR', destination: 'CDG', transportType: 'flight' },
+      { origin: 'PAR', destination: 'ROM', transportType: 'bus' },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'ground', stops: ['Berlin, DE', 'London, UK'] },
+      { kind: 'to-airport', stops: ['London, UK', 'London Heathrow, UK'] },
+      { kind: 'from-airport', stops: ['Paris Charles de Gaulle, FR', 'Paris, FR'] },
+      { kind: 'ground', stops: ['Paris, FR', 'Rome, IT'] },
+    ]);
+  });
+
+  it('routes a standalone flight from current location to the airport and on to the city', () => {
+    const segments = groundSegments([
+      { origin: 'LHR', destination: 'CDG', transportType: 'flight' },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'to-airport', stops: ['London Heathrow, UK'], fromCurrentLocation: true },
+      { kind: 'from-airport', stops: ['Paris Charles de Gaulle, FR', 'Paris, FR'] },
+    ]);
+  });
+
+  it('skips a from-airport segment when the arrival airport city is unknown', () => {
+    const segments = groundSegments([
+      { origin: 'LHR', destination: 'ZZZ', transportType: 'flight' },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'to-airport', stops: ['London Heathrow, UK'], fromCurrentLocation: true },
+    ]);
+  });
+});
+
+describe('segment URLs', () => {
+  it('omits the origin for a current-location segment', () => {
+    const seg = { kind: 'to-airport' as const, stops: ['London Heathrow, UK'], fromCurrentLocation: true };
+    const g = segmentGoogleUrl(seg);
+    expect(g).toContain('destination=London%20Heathrow%2C%20UK');
+    expect(g).not.toContain('origin=');
+    expect(g).toContain('travelmode=transit');
+    const a = segmentAppleUrl(seg);
+    expect(a).toContain('daddr=London%20Heathrow%2C%20UK');
+    expect(a).not.toContain('saddr=');
+    expect(a).toContain('dirflg=r');
+  });
+
+  it('builds normal directions for a two-stop segment', () => {
+    const seg = { kind: 'ground' as const, stops: ['Berlin, DE', 'London, UK'] };
+    expect(segmentGoogleUrl(seg)).toBe(googleMapsUrl(['Berlin, DE', 'London, UK']));
+    expect(segmentAppleUrl(seg)).toBe(appleMapsUrl(['Berlin, DE', 'London, UK']));
   });
 });

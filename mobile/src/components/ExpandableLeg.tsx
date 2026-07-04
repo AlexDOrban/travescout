@@ -10,18 +10,12 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BookedTrip } from '../types/booking';
-import { TRANSPORT_ICON } from '../constants/transport';
+import { TRANSPORT_ICON, PROVIDER_TRANSPORT } from '../constants/transport';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-const PROVIDER_TRANSPORT: Record<string, string> = {
-  amadeus: 'flight',
-  flixbus: 'bus',
-  rail: 'train',
-};
 
 interface Props {
   leg: BookedTrip;

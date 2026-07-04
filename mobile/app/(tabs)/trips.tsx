@@ -13,6 +13,7 @@ import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { ExpandableLeg } from '../../src/components/ExpandableLeg';
 import { RouteMapMenu } from '../../src/components/RouteMapMenu';
+import { PROVIDER_TRANSPORT } from '../../src/constants/transport';
 import { getTrips } from '../../src/api/booking';
 import { getItineraries } from '../../src/api/itinerary';
 import type { BookedTrip } from '../../src/types/booking';
@@ -160,12 +161,15 @@ export default function MyTripsScreen() {
 
                   <View style={{ marginTop: 10 }}>
                     <RouteMapMenu
-                      codes={[
-                        ...(iti.legs?.length ? [iti.legs[0].origin] : [iti.origin]),
-                        ...(iti.legs?.length
-                          ? iti.legs.map(l => l.destination)
-                          : [iti.destination]),
-                      ]}
+                      legs={
+                        iti.legs?.length
+                          ? iti.legs.map(l => ({
+                              origin: l.origin,
+                              destination: l.destination,
+                              transportType: PROVIDER_TRANSPORT[l.provider],
+                            }))
+                          : [{ origin: iti.origin, destination: iti.destination }]
+                      }
                       colors={colors}
                     />
                   </View>
@@ -190,7 +194,16 @@ export default function MyTripsScreen() {
                   <ExpandableLeg leg={trip} colors={colors} format={format} />
                 </View>
                 <View style={{ marginTop: 10 }}>
-                  <RouteMapMenu codes={[trip.origin, trip.destination]} colors={colors} />
+                  <RouteMapMenu
+                    legs={[
+                      {
+                        origin: trip.origin,
+                        destination: trip.destination,
+                        transportType: PROVIDER_TRANSPORT[trip.provider],
+                      },
+                    ]}
+                    colors={colors}
+                  />
                 </View>
               </View>
             );

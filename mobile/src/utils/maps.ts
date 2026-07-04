@@ -58,3 +58,96 @@ export function appleMapsUrl(stops: string[], mode: MapTravelMode = 'transit'): 
   if (stops.length < 2) return '';
   return `https://maps.apple.com/?saddr=${enc(stops[0])}&daddr=${enc(stops[stops.length - 1])}&dirflg=${APPLE_DIRFLG[mode]}`;
 }
+
+// --- ground-only route segments -------------------------------------------
+//
+// Map apps can't draw a flight, so a trip's map route is split into its
+// ground portions: booked bus/train legs, plus how to reach the departure
+// airport and leave the arrival airport around each flight leg.
+
+export interface RouteLegInput {
+  origin: string;
+  destination: string;
+  /** 'flight' | 'bus' | 'train' — anything but 'flight' is a ground leg. */
+  transportType?: string;
+}
+
+export interface MapSegment {
+  kind: 'ground' | 'to-airport' | 'from-airport';
+  /** Resolved stop labels, origin..destination. */
+  stops: string[];
+  /** Single-stop segment starting at the user's current location. */
+  fromCurrentLocation?: boolean;
+}
+
+// The city a hub belongs to, as a geocodable label — or null if unknown.
+function hubCityLabel(code: string): string | null {
+  const hub = getHubByCode(code);
+  if (!hub) return null;
+  const city = CITIES.find(c => c.code === hub.cityCode);
+  return city ? `${city.name}, ${city.country}` : null;
+}
+
+export function groundSegments(legs: RouteLegInput[]): MapSegment[] {
+  const segments: MapSegment[] = [];
+  let chain: string[] = [];
+
+  const flush = () => {
+    if (chain.length >= 2) segments.push({ kind: 'ground', stops: chain });
+    chain = [];
+  };
+
+  legs.forEach((leg, i) => {
+    if (leg.transportType !== 'flight') {
+      const from = resolveStopLabel(leg.origin);
+      const to = resolveStopLabel(leg.destination);
+      if (chain.length === 0) chain.push(from);
+      else if (chain[chain.length - 1] !== from) {
+        flush();
+        chain.push(from);
+      }
+      if (chain[chain.length - 1] !== to) chain.push(to);
+      return;
+    }
+
+    flush();
+
+    // Getting TO the departure airport: from the previous leg's arrival
+    // point, or from the user's current location on the first leg.
+    const departAirport = resolveStopLabel(leg.origin);
+    const prev = i > 0 ? resolveStopLabel(legs[i - 1].destination) : null;
+    if (prev === null) {
+      segments.push({ kind: 'to-airport', stops: [departAirport], fromCurrentLocation: true });
+    } else if (prev !== departAirport) {
+      segments.push({ kind: 'to-airport', stops: [prev, departAirport] });
+    }
+
+    // Getting FROM the arrival airport: to the next leg's departure point,
+    // or into the arrival city when the trip ends here.
+    const arriveAirport = resolveStopLabel(leg.destination);
+    const next = legs[i + 1];
+    const toLabel = next ? resolveStopLabel(next.origin) : hubCityLabel(leg.destination);
+    if (toLabel && toLabel !== arriveAirport) {
+      segments.push({ kind: 'from-airport', stops: [arriveAirport, toLabel] });
+    }
+  });
+
+  flush();
+  return segments;
+}
+
+export function segmentGoogleUrl(seg: MapSegment, mode: MapTravelMode = 'transit'): string {
+  if (seg.fromCurrentLocation && seg.stops.length === 1) {
+    // No origin param — Google Maps falls back to the current location.
+    return `https://www.google.com/maps/dir/?api=1&destination=${enc(seg.stops[0])}&travelmode=${mode}`;
+  }
+  return googleMapsUrl(seg.stops, mode);
+}
+
+export function segmentAppleUrl(seg: MapSegment, mode: MapTravelMode = 'transit'): string {
+  if (seg.fromCurrentLocation && seg.stops.length === 1) {
+    // No saddr param — Apple Maps starts from the current location.
+    return `https://maps.apple.com/?daddr=${enc(seg.stops[0])}&dirflg=${APPLE_DIRFLG[mode]}`;
+  }
+  return appleMapsUrl(seg.stops, mode);
+}

@@ -83,7 +83,16 @@ export default function TripDetailScreen() {
         <DetailRow label="Provider" value={trip.provider} colors={colors} />
 
         <View style={{ marginTop: 8 }}>
-          <RouteMapMenu codes={[trip.origin, trip.destination]} colors={colors} />
+          <RouteMapMenu
+            legs={[
+              {
+                origin: trip.origin,
+                destination: trip.destination,
+                transportType: trip.transportType,
+              },
+            ]}
+            colors={colors}
+          />
         </View>
       </View>
 

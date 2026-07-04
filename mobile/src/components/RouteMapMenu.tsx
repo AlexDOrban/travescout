@@ -1,32 +1,53 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
 import type { ColorPalette } from '../constants/colors';
-import { routeStops, googleMapsUrl, appleMapsUrl } from '../utils/maps';
+import {
+  groundSegments,
+  segmentGoogleUrl,
+  segmentAppleUrl,
+  type RouteLegInput,
+  type MapSegment,
+} from '../utils/maps';
 
 interface Props {
-  /** Ordered origin..destination codes for the trip's legs. */
-  codes: string[];
+  /** Ordered legs of the trip; flight legs are shown as airport access only. */
+  legs: RouteLegInput[];
   colors: ColorPalette;
   testID?: string;
 }
 
-// A dropdown that opens the trip's route in Apple Maps or Google Maps.
-export function RouteMapMenu({ codes, colors, testID }: Props) {
-  const [open, setOpen] = useState(false);
-  const stops = routeStops(codes);
-  if (stops.length < 2) return null;
+function segmentTitle(seg: MapSegment): string {
+  if (seg.kind === 'to-airport') {
+    const from = seg.fromCurrentLocation ? 'Your location' : seg.stops[0];
+    return `🛫  To airport: ${from} → ${seg.stops[seg.stops.length - 1]}`;
+  }
+  if (seg.kind === 'from-airport') {
+    return `🛬  From airport: ${seg.stops.join(' → ')}`;
+  }
+  return `🚌  ${seg.stops.join(' → ')}`;
+}
 
-  const options = (
+// A dropdown that opens the trip's ground route segments in Apple Maps or
+// Google Maps. Flights can't be drawn by map apps, so each flight leg is
+// replaced by directions to the departure airport and from the arrival one.
+export function RouteMapMenu({ legs, colors, testID }: Props) {
+  const [open, setOpen] = useState(false);
+  const segments = groundSegments(legs);
+  if (segments.length === 0) return null;
+
+  const hasFlight = legs.some(l => l.transportType === 'flight');
+
+  // Native map first per platform.
+  const apps =
     Platform.OS === 'ios'
-      ? [
-          { key: 'apple', label: 'Apple Maps', url: appleMapsUrl(stops) },
-          { key: 'google', label: 'Google Maps', url: googleMapsUrl(stops) },
-        ]
-      : [
-          { key: 'google', label: 'Google Maps', url: googleMapsUrl(stops) },
-          { key: 'apple', label: 'Apple Maps', url: appleMapsUrl(stops) },
-        ]
-  ).filter(o => o.url);
+      ? ([
+          { key: 'apple', label: 'Apple Maps', url: segmentAppleUrl },
+          { key: 'google', label: 'Google Maps', url: segmentGoogleUrl },
+        ] as const)
+      : ([
+          { key: 'google', label: 'Google Maps', url: segmentGoogleUrl },
+          { key: 'apple', label: 'Apple Maps', url: segmentAppleUrl },
+        ] as const);
 
   async function openUrl(url: string) {
     setOpen(false);
@@ -56,23 +77,35 @@ export function RouteMapMenu({ codes, colors, testID }: Props) {
           testID="route-map-menu"
           style={[styles.menu, { borderColor: colors.border, backgroundColor: colors.card }]}
         >
-          {stops.length > 2 ? (
-            <Text style={[styles.routeLine, { color: colors.textSecondary, borderBottomColor: colors.border }]}>
-              {stops.join('  →  ')}
+          {hasFlight ? (
+            <Text style={[styles.note, { color: colors.textSecondary, borderBottomColor: colors.border }]}>
+              Flights can’t be shown on the map — these are the ground connections. Transit is
+              preselected; you can switch to taxi, bike or other modes in the map app.
             </Text>
           ) : null}
-          {options.map((o, i) => (
-            <TouchableOpacity
-              key={o.key}
-              testID={`route-map-${o.key}`}
-              onPress={() => openUrl(o.url)}
+          {segments.map((seg, i) => (
+            <View
+              key={`${seg.kind}-${i}`}
+              testID={`route-segment-${i}`}
               style={[
-                styles.item,
+                styles.segment,
                 i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth },
               ]}
             >
-              <Text style={{ color: colors.text }}>Open in {o.label}</Text>
-            </TouchableOpacity>
+              <Text style={[styles.segmentTitle, { color: colors.text }]}>{segmentTitle(seg)}</Text>
+              <View style={styles.appRow}>
+                {apps.map(app => (
+                  <TouchableOpacity
+                    key={app.key}
+                    testID={`route-segment-${i}-${app.key}`}
+                    onPress={() => openUrl(app.url(seg))}
+                    style={[styles.appBtn, { borderColor: colors.border }]}
+                  >
+                    <Text style={{ color: colors.accent, fontSize: 13 }}>{app.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           ))}
         </View>
       )}
@@ -96,13 +129,28 @@ const styles = StyleSheet.create({
     marginTop: 6,
     overflow: 'hidden',
   },
-  routeLine: {
+  note: {
     fontSize: 12,
     padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  item: {
+  segment: {
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 12,
+  },
+  segmentTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  appRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  appBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
 });
