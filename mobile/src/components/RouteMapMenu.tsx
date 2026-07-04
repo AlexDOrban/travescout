@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Linking,
+  Platform,
+} from 'react-native';
 import type { ColorPalette } from '../constants/colors';
 import {
   groundSegments,
@@ -7,6 +15,7 @@ import {
   segmentAppleUrl,
   type RouteLegInput,
   type MapSegment,
+  type MapTravelMode,
 } from '../utils/maps';
 
 interface Props {
@@ -15,6 +24,13 @@ interface Props {
   colors: ColorPalette;
   testID?: string;
 }
+
+const MODES: { key: MapTravelMode; label: string }[] = [
+  { key: 'transit', label: '🚇 Transit' },
+  { key: 'walking', label: '🚶 Walk' },
+  { key: 'bicycling', label: '🚲 Bike' },
+  { key: 'driving', label: '🚗 Car' },
+];
 
 function segmentTitle(seg: MapSegment): string {
   if (seg.kind === 'to-airport') {
@@ -30,9 +46,15 @@ function segmentTitle(seg: MapSegment): string {
 // A dropdown that opens the trip's ground route segments in Apple Maps or
 // Google Maps. Flights can't be drawn by map apps, so each flight leg is
 // replaced by directions to the departure airport and from the arrival one.
+// The user can type where they actually leave from and their final
+// destination (e.g. a hotel), and pick the travel mode for the links.
 export function RouteMapMenu({ legs, colors, testID }: Props) {
   const [open, setOpen] = useState(false);
-  const segments = groundSegments(legs);
+  const [startAddress, setStartAddress] = useState('');
+  const [endAddress, setEndAddress] = useState('');
+  const [mode, setMode] = useState<MapTravelMode>('transit');
+
+  const segments = groundSegments(legs, { startAddress, endAddress });
   if (segments.length === 0) return null;
 
   const hasFlight = legs.some(l => l.transportType === 'flight');
@@ -50,13 +72,17 @@ export function RouteMapMenu({ legs, colors, testID }: Props) {
         ] as const);
 
   async function openUrl(url: string) {
-    setOpen(false);
     try {
       await Linking.openURL(url);
     } catch {
       // Nothing installed to handle it — silently ignore.
     }
   }
+
+  const inputStyle = [
+    styles.input,
+    { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+  ];
 
   return (
     <View>
@@ -79,10 +105,56 @@ export function RouteMapMenu({ legs, colors, testID }: Props) {
         >
           {hasFlight ? (
             <Text style={[styles.note, { color: colors.textSecondary, borderBottomColor: colors.border }]}>
-              Flights can’t be shown on the map — these are the ground connections. Transit is
-              preselected; you can switch to taxi, bike or other modes in the map app.
+              Flights can’t be shown on the map — these are the ground connections to and from
+              the airports.
             </Text>
           ) : null}
+
+          <View style={[styles.endpoints, { borderBottomColor: colors.border }]}>
+            <TextInput
+              testID="route-start-address"
+              style={inputStyle}
+              value={startAddress}
+              onChangeText={setStartAddress}
+              placeholder="Leaving from (hotel, address…)"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TextInput
+              testID="route-end-address"
+              style={inputStyle}
+              value={endAddress}
+              onChangeText={setEndAddress}
+              placeholder="Final destination (hotel, address…)"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <View style={styles.modeRow}>
+              {MODES.map(m => (
+                <TouchableOpacity
+                  key={m.key}
+                  testID={`route-mode-${m.key}`}
+                  onPress={() => setMode(m.key)}
+                  style={[
+                    styles.modeChip,
+                    { borderColor: mode === m.key ? colors.accent : colors.border },
+                    mode === m.key && { backgroundColor: colors.background },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mode === m.key }}
+                >
+                  <Text
+                    style={{
+                      color: mode === m.key ? colors.accent : colors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: mode === m.key ? '700' : '400',
+                    }}
+                  >
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {segments.map((seg, i) => (
             <View
               key={`${seg.kind}-${i}`}
@@ -98,7 +170,7 @@ export function RouteMapMenu({ legs, colors, testID }: Props) {
                   <TouchableOpacity
                     key={app.key}
                     testID={`route-segment-${i}-${app.key}`}
-                    onPress={() => openUrl(app.url(seg))}
+                    onPress={() => openUrl(app.url(seg, mode))}
                     style={[styles.appBtn, { borderColor: colors.border }]}
                   >
                     <Text style={{ color: colors.accent, fontSize: 13 }}>{app.label}</Text>
@@ -133,6 +205,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  endpoints: {
+    padding: 12,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  modeChip: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   segment: {
     paddingHorizontal: 14,

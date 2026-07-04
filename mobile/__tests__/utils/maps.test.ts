@@ -123,6 +123,40 @@ describe('groundSegments', () => {
       { kind: 'to-airport', stops: ['London Heathrow, UK'], fromCurrentLocation: true },
     ]);
   });
+
+  it('uses a typed start address instead of the current location for a first-leg flight', () => {
+    const segments = groundSegments(
+      [{ origin: 'LHR', destination: 'CDG', transportType: 'flight' }],
+      { startAddress: 'Savoy Hotel, London' },
+    );
+    expect(segments[0]).toEqual({
+      kind: 'to-airport',
+      stops: ['Savoy Hotel, London', 'London Heathrow, UK'],
+    });
+  });
+
+  it('routes from the arrival airport to a typed final destination', () => {
+    const segments = groundSegments(
+      [{ origin: 'LHR', destination: 'CDG', transportType: 'flight' }],
+      { endAddress: 'Hôtel Lutetia, Paris' },
+    );
+    expect(segments[segments.length - 1]).toEqual({
+      kind: 'from-airport',
+      stops: ['Paris Charles de Gaulle, FR', 'Hôtel Lutetia, Paris'],
+    });
+  });
+
+  it('adds access segments around ground legs for typed endpoints', () => {
+    const segments = groundSegments(
+      [{ origin: 'BER', destination: 'LON', transportType: 'train' }],
+      { startAddress: 'Hotel Adlon, Berlin', endAddress: 'The Ritz, London' },
+    );
+    expect(segments).toEqual([
+      { kind: 'ground', stops: ['Hotel Adlon, Berlin', 'Berlin, DE'] },
+      { kind: 'ground', stops: ['Berlin, DE', 'London, UK'] },
+      { kind: 'ground', stops: ['London, UK', 'The Ritz, London'] },
+    ]);
+  });
 });
 
 describe('segment URLs', () => {

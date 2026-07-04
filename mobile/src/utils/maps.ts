@@ -88,7 +88,16 @@ function hubCityLabel(code: string): string | null {
   return city ? `${city.name}, ${city.country}` : null;
 }
 
-export function groundSegments(legs: RouteLegInput[]): MapSegment[] {
+export interface RouteEndpoints {
+  /** Free-text place the user leaves from (hotel, home address…). */
+  startAddress?: string;
+  /** Free-text final destination (hotel, venue…). */
+  endAddress?: string;
+}
+
+export function groundSegments(legs: RouteLegInput[], endpoints: RouteEndpoints = {}): MapSegment[] {
+  const start = endpoints.startAddress?.trim() || null;
+  const end = endpoints.endAddress?.trim() || null;
   const segments: MapSegment[] = [];
   let chain: string[] = [];
 
@@ -101,21 +110,30 @@ export function groundSegments(legs: RouteLegInput[]): MapSegment[] {
     if (leg.transportType !== 'flight') {
       const from = resolveStopLabel(leg.origin);
       const to = resolveStopLabel(leg.destination);
+      // Leaving from a typed address before the first ground leg.
+      if (i === 0 && start && start !== from) {
+        segments.push({ kind: 'ground', stops: [start, from] });
+      }
       if (chain.length === 0) chain.push(from);
       else if (chain[chain.length - 1] !== from) {
         flush();
         chain.push(from);
       }
       if (chain[chain.length - 1] !== to) chain.push(to);
+      // Continuing to a typed address after the last ground leg.
+      if (i === legs.length - 1 && end && end !== to) {
+        flush();
+        segments.push({ kind: 'ground', stops: [to, end] });
+      }
       return;
     }
 
     flush();
 
-    // Getting TO the departure airport: from the previous leg's arrival
-    // point, or from the user's current location on the first leg.
+    // Getting TO the departure airport: from the typed start address or the
+    // previous leg's arrival point — or the user's current location.
     const departAirport = resolveStopLabel(leg.origin);
-    const prev = i > 0 ? resolveStopLabel(legs[i - 1].destination) : null;
+    const prev = i > 0 ? resolveStopLabel(legs[i - 1].destination) : start;
     if (prev === null) {
       segments.push({ kind: 'to-airport', stops: [departAirport], fromCurrentLocation: true });
     } else if (prev !== departAirport) {
@@ -123,10 +141,12 @@ export function groundSegments(legs: RouteLegInput[]): MapSegment[] {
     }
 
     // Getting FROM the arrival airport: to the next leg's departure point,
-    // or into the arrival city when the trip ends here.
+    // or the typed final destination, or the arrival city.
     const arriveAirport = resolveStopLabel(leg.destination);
     const next = legs[i + 1];
-    const toLabel = next ? resolveStopLabel(next.origin) : hubCityLabel(leg.destination);
+    const toLabel = next
+      ? resolveStopLabel(next.origin)
+      : end ?? hubCityLabel(leg.destination);
     if (toLabel && toLabel !== arriveAirport) {
       segments.push({ kind: 'from-airport', stops: [arriveAirport, toLabel] });
     }
