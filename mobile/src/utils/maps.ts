@@ -28,21 +28,33 @@ export function routeStops(codes: string[]): string[] {
 
 const enc = (s: string) => encodeURIComponent(s);
 
+// Every bookable trip is public transport (flight/bus/train), so map links
+// default to transit directions; the user can switch mode in the map app.
+export type MapTravelMode = 'transit' | 'driving' | 'walking' | 'bicycling';
+
+const APPLE_DIRFLG: Record<MapTravelMode, string> = {
+  transit: 'r',
+  driving: 'd',
+  walking: 'w',
+  bicycling: 'c',
+};
+
 // Google Maps supports intermediate waypoints, so the whole multi-leg route
 // is shown. Universal https link opens the app if installed, else the web.
-export function googleMapsUrl(stops: string[]): string {
+export function googleMapsUrl(stops: string[], mode: MapTravelMode = 'transit'): string {
   if (stops.length < 2) return '';
   const origin = enc(stops[0]);
   const destination = enc(stops[stops.length - 1]);
   const waypoints = stops.slice(1, -1).map(enc).join('|');
   let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
   if (waypoints) url += `&waypoints=${waypoints}`;
+  url += `&travelmode=${mode}`;
   return url;
 }
 
 // Apple Maps URLs support a single origin/destination only, so it shows the
 // overall start → end of the trip.
-export function appleMapsUrl(stops: string[]): string {
+export function appleMapsUrl(stops: string[], mode: MapTravelMode = 'transit'): string {
   if (stops.length < 2) return '';
-  return `https://maps.apple.com/?saddr=${enc(stops[0])}&daddr=${enc(stops[stops.length - 1])}`;
+  return `https://maps.apple.com/?saddr=${enc(stops[0])}&daddr=${enc(stops[stops.length - 1])}&dirflg=${APPLE_DIRFLG[mode]}`;
 }

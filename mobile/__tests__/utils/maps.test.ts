@@ -42,15 +42,32 @@ describe('googleMapsUrl', () => {
   it('returns empty string with fewer than two stops', () => {
     expect(googleMapsUrl(['A'])).toBe('');
   });
+
+  it('preselects transit as the travel mode by default', () => {
+    expect(googleMapsUrl(['A', 'B'])).toContain('travelmode=transit');
+  });
+
+  it('accepts an explicit travel mode', () => {
+    expect(googleMapsUrl(['A', 'B'], 'driving')).toContain('travelmode=driving');
+  });
 });
 
 describe('appleMapsUrl', () => {
   it('builds a saddr/daddr URL for start and end', () => {
     const url = appleMapsUrl(['London, UK', 'B', 'Paris, FR']);
-    expect(url).toBe('https://maps.apple.com/?saddr=London%2C%20UK&daddr=Paris%2C%20FR');
+    expect(url).toContain('saddr=London%2C%20UK');
+    expect(url).toContain('daddr=Paris%2C%20FR');
   });
 
   it('returns empty string with fewer than two stops', () => {
     expect(appleMapsUrl([])).toBe('');
+  });
+
+  it('preselects transit directions by default', () => {
+    expect(appleMapsUrl(['A', 'B'])).toContain('dirflg=r');
+  });
+
+  it('accepts an explicit travel mode', () => {
+    expect(appleMapsUrl(['A', 'B'], 'driving')).toContain('dirflg=d');
   });
 });
