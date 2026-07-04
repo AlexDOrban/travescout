@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppHeader } from '../../src/components/AppHeader';
+import { RouteMapMenu } from '../../src/components/RouteMapMenu';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
@@ -80,6 +81,10 @@ export default function TripDetailScreen() {
           colors={colors}
         />
         <DetailRow label="Provider" value={trip.provider} colors={colors} />
+
+        <View style={{ marginTop: 8 }}>
+          <RouteMapMenu codes={[trip.origin, trip.destination]} colors={colors} />
+        </View>
       </View>
 
       <TouchableOpacity

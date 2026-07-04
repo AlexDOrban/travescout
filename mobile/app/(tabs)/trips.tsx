@@ -12,6 +12,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { ExpandableLeg } from '../../src/components/ExpandableLeg';
+import { RouteMapMenu } from '../../src/components/RouteMapMenu';
 import { getTrips } from '../../src/api/booking';
 import { getItineraries } from '../../src/api/itinerary';
 import type { BookedTrip } from '../../src/types/booking';
@@ -156,6 +157,18 @@ export default function MyTripsScreen() {
                       ))}
                     </View>
                   )}
+
+                  <View style={{ marginTop: 10 }}>
+                    <RouteMapMenu
+                      codes={[
+                        ...(iti.legs?.length ? [iti.legs[0].origin] : [iti.origin]),
+                        ...(iti.legs?.length
+                          ? iti.legs.map(l => l.destination)
+                          : [iti.destination]),
+                      ]}
+                      colors={colors}
+                    />
+                  </View>
                 </View>
               );
             }
@@ -175,6 +188,9 @@ export default function MyTripsScreen() {
                 </View>
                 <View style={{ marginTop: 8 }}>
                   <ExpandableLeg leg={trip} colors={colors} format={format} />
+                </View>
+                <View style={{ marginTop: 10 }}>
+                  <RouteMapMenu codes={[trip.origin, trip.destination]} colors={colors} />
                 </View>
               </View>
             );
