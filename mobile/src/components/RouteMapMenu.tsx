@@ -17,7 +17,7 @@ import {
   type MapSegment,
   type MapTravelMode,
 } from '../utils/maps';
-import { getTransferPrefs, saveTransferPrefs } from '../utils/transferPrefs';
+import { getTransferPrefs, saveTransferPrefs, type TransferPrefs } from '../utils/transferPrefs';
 import { TravelModeChips } from './TravelModeChips';
 
 interface Props {
@@ -29,6 +29,10 @@ interface Props {
    * mode chosen at checkout (or edited here) stick for the whole trip.
    */
   storageKey?: string;
+  /** Seed values when nothing is stored yet (e.g. mid-checkout). */
+  initialPrefs?: TransferPrefs;
+  /** Reports every edit — lets checkout screens keep their store in sync. */
+  onChange?: (prefs: TransferPrefs) => void;
   testID?: string;
 }
 
@@ -48,11 +52,11 @@ function segmentTitle(seg: MapSegment): string {
 // replaced by directions to the departure airport and from the arrival one.
 // The user can type where they actually leave from and their final
 // destination (e.g. a hotel), and pick the travel mode for the links.
-export function RouteMapMenu({ legs, colors, storageKey, testID }: Props) {
+export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange, testID }: Props) {
   const [open, setOpen] = useState(false);
-  const [startAddress, setStartAddress] = useState('');
-  const [endAddress, setEndAddress] = useState('');
-  const [mode, setMode] = useState<MapTravelMode>('transit');
+  const [startAddress, setStartAddress] = useState(initialPrefs?.startAddress ?? '');
+  const [endAddress, setEndAddress] = useState(initialPrefs?.endAddress ?? '');
+  const [mode, setMode] = useState<MapTravelMode>(initialPrefs?.travelMode ?? 'transit');
 
   useEffect(() => {
     if (!storageKey) return;
@@ -78,6 +82,7 @@ export function RouteMapMenu({ legs, colors, storageKey, testID }: Props) {
     if (next.endAddress !== undefined) setEndAddress(next.endAddress);
     if (next.mode !== undefined) setMode(next.mode);
     if (storageKey) void saveTransferPrefs(storageKey, merged);
+    onChange?.(merged);
   }
 
   const segments = groundSegments(legs, { startAddress, endAddress });

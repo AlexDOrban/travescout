@@ -11,12 +11,15 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { Stepper } from '../../src/components/Stepper';
+import { RouteMapMenu } from '../../src/components/RouteMapMenu';
 import { TRANSPORT_ICON } from '../../src/constants/transport';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
   getPassengers,
   getCheckoutItinerary,
+  getCheckoutTransfer,
+  setCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
 
 export default function ReviewScreen() {
@@ -72,6 +75,17 @@ export default function ReviewScreen() {
               </React.Fragment>
             ))}
           </View>
+
+          <RouteMapMenu
+            legs={itinerary.legs.map(l => ({
+              origin: l.origin,
+              destination: l.destination,
+              transportType: l.transportType,
+            }))}
+            initialPrefs={getCheckoutTransfer()}
+            onChange={setCheckoutTransfer}
+            colors={colors}
+          />
 
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Passengers</Text>
@@ -142,6 +156,19 @@ export default function ReviewScreen() {
             {format(trip.priceEur)} for {adults} {adults === 1 ? 'traveller' : 'travellers'}
           </Text>
         </View>
+
+        <RouteMapMenu
+          legs={[
+            {
+              origin: trip.origin,
+              destination: trip.destination,
+              transportType: trip.transportType,
+            },
+          ]}
+          initialPrefs={getCheckoutTransfer()}
+          onChange={setCheckoutTransfer}
+          colors={colors}
+        />
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Passengers</Text>

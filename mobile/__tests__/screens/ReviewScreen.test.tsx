@@ -5,6 +5,8 @@ import {
   getCheckoutTrip,
   getCheckoutAdults,
   getPassengers,
+  getCheckoutTransfer,
+  setCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/checkoutStore');
@@ -47,6 +49,9 @@ beforeEach(() => {
   });
   mockGetAdults.mockReturnValue(1);
   mockGetPassengers.mockReturnValue([{ name: 'John Doe', email: 'john@test.com' }]);
+  (getCheckoutTransfer as jest.Mock).mockReturnValue({
+    startAddress: '', endAddress: '', travelMode: 'transit',
+  });
 });
 
 describe('ReviewScreen', () => {
@@ -78,5 +83,23 @@ describe('ReviewScreen', () => {
     const { getByTestId } = render(<ReviewScreen />);
     fireEvent.press(getByTestId('pay-btn'));
     expect(mockPush).toHaveBeenCalledWith('/checkout/payment');
+  });
+
+  it('shows the route-on-map menu seeded from checkout transfer prefs', () => {
+    (getCheckoutTransfer as jest.Mock).mockReturnValue({
+      startAddress: 'Savoy Hotel, London', endAddress: '', travelMode: 'transit',
+    });
+    const { getByTestId, getByText } = render(<ReviewScreen />);
+    fireEvent.press(getByTestId('route-map-toggle'));
+    expect(getByText(/Savoy Hotel, London → London, UK/)).toBeTruthy();
+  });
+
+  it('syncs route menu edits back into the checkout store', () => {
+    const { getByTestId } = render(<ReviewScreen />);
+    fireEvent.press(getByTestId('route-map-toggle'));
+    fireEvent.changeText(getByTestId('route-start-address'), 'The Ritz, London');
+    expect(setCheckoutTransfer).toHaveBeenCalledWith({
+      startAddress: 'The Ritz, London', endAddress: '', travelMode: 'transit',
+    });
   });
 });

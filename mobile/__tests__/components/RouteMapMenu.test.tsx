@@ -67,6 +67,27 @@ describe('RouteMapMenu', () => {
     expect(mockOpen).toHaveBeenCalledWith(expect.stringContaining('travelmode=walking'));
   });
 
+  it('seeds inputs from initialPrefs and reports edits via onChange', () => {
+    const onChange = jest.fn();
+    const ui = render(
+      <RouteMapMenu
+        legs={FLIGHT_LEGS}
+        colors={DARK}
+        initialPrefs={{ startAddress: 'Savoy Hotel, London', endAddress: '', travelMode: 'transit' }}
+        onChange={onChange}
+      />,
+    );
+    openMenu(ui);
+    expect(ui.getByText(/Savoy Hotel, London → London Heathrow, UK/)).toBeTruthy();
+
+    fireEvent.changeText(ui.getByTestId('route-end-address'), 'Hôtel Lutetia, Paris');
+    expect(onChange).toHaveBeenCalledWith({
+      startAddress: 'Savoy Hotel, London',
+      endAddress: 'Hôtel Lutetia, Paris',
+      travelMode: 'transit',
+    });
+  });
+
   it('persists edits so they survive a remount', async () => {
     const ui = render(<RouteMapMenu legs={FLIGHT_LEGS} colors={DARK} storageKey="BK-2" />);
     openMenu(ui);

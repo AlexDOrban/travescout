@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useCurrency } from '../src/contexts/CurrencyContext';
 import { AppHeader } from '../src/components/AppHeader';
+import { RouteMapMenu } from '../src/components/RouteMapMenu';
+import { PROVIDER_TRANSPORT } from '../src/constants/transport';
 import { getBookingResult, clearCheckout } from '../src/stores/checkoutStore';
 import type { ItineraryBookingResponse } from '../src/types/itinerary';
 
@@ -119,6 +121,16 @@ export default function ConfirmationScreen() {
             })}
           </View>
 
+          <RouteMapMenu
+            legs={itinerary.legs.map(leg => ({
+              origin: leg.origin,
+              destination: leg.destination,
+              transportType: PROVIDER_TRANSPORT[leg.provider],
+            }))}
+            storageKey={itineraryBooking.bookingRef}
+            colors={colors}
+          />
+
           <TouchableOpacity
             testID="view-trips-btn"
             style={[styles.button, { backgroundColor: colors.accent }]}
@@ -188,6 +200,18 @@ export default function ConfirmationScreen() {
             {booking.status}
           </Text>
         </View>
+
+        <RouteMapMenu
+          legs={[
+            {
+              origin: trip.origin,
+              destination: trip.destination,
+              transportType: PROVIDER_TRANSPORT[trip.provider],
+            },
+          ]}
+          storageKey={booking.bookingRef}
+          colors={colors}
+        />
 
         <TouchableOpacity
           testID="view-trips-btn"

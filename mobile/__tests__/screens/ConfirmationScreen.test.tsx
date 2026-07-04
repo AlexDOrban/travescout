@@ -76,6 +76,13 @@ describe('ConfirmationScreen', () => {
     expect(getByText('No booking found')).toBeTruthy();
   });
 
+  it('offers airport directions via the route-on-map menu', () => {
+    const { getByTestId, getByText } = render(<ConfirmationScreen />);
+    fireEvent.press(getByTestId('route-map-toggle'));
+    expect(getByText(/London, UK → Paris, FR/)).toBeTruthy();
+    expect(getByTestId('route-start-address')).toBeTruthy();
+  });
+
   it('shows per-leg status for itinerary booking', () => {
     mockGetBookingResult.mockReturnValue({
       bookingRef: 'TS-123',

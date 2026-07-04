@@ -58,4 +58,53 @@ describe('CityAutocomplete', () => {
     fireEvent.changeText(getByTestId('from'), 'LON');
     expect(getByTestId('from-option-LON')).toBeTruthy();
   });
+
+  const arrow = (input: any, key: string) =>
+    fireEvent(input, 'keyPress', { nativeEvent: { key } });
+
+  it('moves the highlight with arrow keys and selects with enter', () => {
+    const onSelect = jest.fn();
+    const { getByTestId } = render(
+      <CityAutocomplete label="From" value="" onSelect={onSelect} testID="from" />,
+    );
+    const input = getByTestId('from');
+    fireEvent.changeText(input, 'B'); // Berlin, Barcelona, Budapest, Brussels
+    arrow(input, 'ArrowDown');
+    arrow(input, 'ArrowDown');
+    fireEvent(input, 'submitEditing');
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'BCN', name: 'Barcelona' }),
+    );
+  });
+
+  it('arrow up moves the highlight back and clamps at the top', () => {
+    const onSelect = jest.fn();
+    const { getByTestId } = render(
+      <CityAutocomplete label="From" value="" onSelect={onSelect} testID="from" />,
+    );
+    const input = getByTestId('from');
+    fireEvent.changeText(input, 'B');
+    arrow(input, 'ArrowDown');
+    arrow(input, 'ArrowDown');
+    arrow(input, 'ArrowUp');
+    arrow(input, 'ArrowUp');
+    arrow(input, 'ArrowUp'); // clamps at first option
+    fireEvent(input, 'submitEditing');
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'BER', name: 'Berlin' }),
+    );
+  });
+
+  it('enter with no highlight selects the first suggestion', () => {
+    const onSelect = jest.fn();
+    const { getByTestId } = render(
+      <CityAutocomplete label="From" value="" onSelect={onSelect} testID="from" />,
+    );
+    const input = getByTestId('from');
+    fireEvent.changeText(input, 'Par');
+    fireEvent(input, 'submitEditing');
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'PAR', name: 'Paris' }),
+    );
+  });
 });

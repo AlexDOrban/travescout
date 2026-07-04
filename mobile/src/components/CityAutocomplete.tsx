@@ -1,5 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
+} from 'react-native';
 import { CITIES, City } from '../data/cities';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -16,6 +24,8 @@ export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Pr
   const { colors } = useTheme();
   const [query, setQuery] = useState(value);
   const [showDropdown, setShowDropdown] = useState(false);
+  // Keyboard highlight (web / hardware keyboards); -1 = nothing highlighted.
+  const [highlight, setHighlight] = useState(-1);
 
   const filtered = query.length >= 1
     ? CITIES.filter(
@@ -28,6 +38,7 @@ export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Pr
   const handleChangeText = useCallback((text: string) => {
     setQuery(text);
     setShowDropdown(true);
+    setHighlight(-1);
     // Typing invalidates any previously selected city; otherwise the search
     // silently uses the old selection while the input shows new text.
     onClear?.();
@@ -37,10 +48,28 @@ export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Pr
     (city: City) => {
       setQuery(`${city.name} (${city.code})`);
       setShowDropdown(false);
+      setHighlight(-1);
       onSelect(city);
     },
     [onSelect],
   );
+
+  function handleKeyPress(e: NativeSyntheticEvent<TextInputKeyPressEventData>) {
+    if (!showDropdown || filtered.length === 0) return;
+    const key = e.nativeEvent.key;
+    if (key === 'ArrowDown') {
+      setHighlight(h => Math.min(h + 1, filtered.length - 1));
+    } else if (key === 'ArrowUp') {
+      setHighlight(h => Math.max(h - 1, 0));
+    } else if (key === 'Enter') {
+      handleSelect(filtered[highlight >= 0 ? highlight : 0]);
+    }
+  }
+
+  function handleSubmit() {
+    if (!showDropdown || filtered.length === 0) return;
+    handleSelect(filtered[highlight >= 0 ? highlight : 0]);
+  }
 
   return (
     <View>
@@ -53,6 +82,9 @@ export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Pr
         ]}
         value={query}
         onChangeText={handleChangeText}
+        onKeyPress={handleKeyPress}
+        onSubmitEditing={handleSubmit}
+        blurOnSubmit={false}
         placeholder="City or code"
         placeholderTextColor={colors.textSecondary}
       />
@@ -68,11 +100,16 @@ export function CityAutocomplete({ label, value, onSelect, onClear, testID }: Pr
           testID={`${testID}-dropdown`}
           style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
-          {filtered.map(city => (
+          {filtered.map((city, i) => (
             <TouchableOpacity
               key={city.code}
               testID={`${testID}-option-${city.code}`}
-              style={[styles.option, { borderBottomColor: colors.border }]}
+              style={[
+                styles.option,
+                { borderBottomColor: colors.border },
+                i === highlight && { backgroundColor: colors.accent + '33' },
+              ]}
+              accessibilityState={{ selected: i === highlight }}
               onPress={() => handleSelect(city)}
             >
               <Text style={{ color: colors.text }}>
