@@ -1,37 +1,46 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useColorScheme } from 'react-native';
 import { DARK, LIGHT, ColorPalette } from '../constants/colors';
 import { getItem, setItem } from '../api/storage';
+
+export type ThemeMode = 'system' | 'light' | 'dark';
 
 interface ThemeContextValue {
   isDark: boolean;
   colors: ColorPalette;
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
+  /** Flips between light and dark, pinning an explicit choice. */
   toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Dark by default per spec; an explicit choice persists across launches.
-  const [isDark, setIsDark] = useState(true);
+  // Follow the OS appearance until the user picks one; the choice persists.
+  const scheme = useColorScheme();
+  const [mode, setModeState] = useState<ThemeMode>('system');
 
   useEffect(() => {
     getItem('themePreference')
       .then(stored => {
-        if (stored === 'dark' || stored === 'light') setIsDark(stored === 'dark');
+        if (stored === 'dark' || stored === 'light' || stored === 'system') setModeState(stored);
       })
       .catch(() => {});
   }, []);
 
+  const isDark = mode === 'system' ? scheme === 'dark' : mode === 'dark';
   const colors = isDark ? DARK : LIGHT;
-  const toggle = () =>
-    setIsDark(v => {
-      const next = !v;
-      setItem('themePreference', next ? 'dark' : 'light').catch(() => {});
-      return next;
-    });
+
+  function setMode(next: ThemeMode) {
+    setModeState(next);
+    setItem('themePreference', next).catch(() => {});
+  }
+
+  const toggle = () => setMode(isDark ? 'light' : 'dark');
 
   return (
-    <ThemeContext.Provider value={{ isDark, colors, toggle }}>
+    <ThemeContext.Provider value={{ isDark, colors, mode, setMode, toggle }}>
       {children}
     </ThemeContext.Provider>
   );

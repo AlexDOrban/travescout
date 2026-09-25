@@ -86,3 +86,14 @@ describe('searchStore', () => {
     });
   });
 });
+
+describe('search query', () => {
+  it('stores the query and clears it with the results', () => {
+    const { setSearchQuery, getSearchQuery } = jest.requireActual('../../src/stores/searchStore');
+    const q = { from: { name: 'London', code: 'LON', country: 'UK' }, to: { name: 'Paris', code: 'PAR', country: 'FR' }, departDate: '2030-05-01', adults: 2 };
+    setSearchQuery(q);
+    expect(getSearchQuery()).toEqual(q);
+    clearSearchResults();
+    expect(getSearchQuery()).toBeNull();
+  });
+});

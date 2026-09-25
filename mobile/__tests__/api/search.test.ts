@@ -1,4 +1,4 @@
-import { search } from '../../src/api/search';
+import { search, searchPrices } from '../../src/api/search';
 import { api } from '../../src/api/client';
 
 jest.mock('../../src/api/client', () => ({
@@ -43,5 +43,13 @@ describe('search', () => {
     mockGet.mockResolvedValue(response);
     const result = await search({ from: 'LON', to: 'PAR', departDate: '2026-04-15' });
     expect(result).toEqual(response);
+  });
+});
+
+describe('searchPrices', () => {
+  it('calls GET /search/prices with the window and party', async () => {
+    mockGet.mockResolvedValue({ prices: [] });
+    await searchPrices({ from: 'LON', to: 'PAR', startDate: '2030-05-01', days: 7, adults: 2 });
+    expect(mockGet).toHaveBeenCalledWith('/search/prices?from=LON&to=PAR&startDate=2030-05-01&days=7&adults=2');
   });
 });

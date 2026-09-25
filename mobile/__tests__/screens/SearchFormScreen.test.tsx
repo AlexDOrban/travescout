@@ -1,152 +1,171 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import SearchScreen from '../../app/(tabs)/index';
-import { search } from '../../src/api/search';
-import { setSearchResults } from '../../src/stores/searchStore';
+import { setSearchQuery } from '../../src/stores/searchStore';
+import { addDays, todayISO, formatDayLabel } from '../../src/utils/format';
 
-jest.mock('../../src/api/search');
-jest.mock('../../src/stores/searchStore');
-
-// Mock CityAutocomplete to make form testable without dropdown interaction
-jest.mock('../../src/components/CityAutocomplete', () => ({
-  CityAutocomplete: ({ onSelect, testID }: any) => {
-    const { TouchableOpacity } = require('react-native');
-    const city =
-      testID === 'from-city'
-        ? { name: 'London', code: 'LON', country: 'UK' }
-        : { name: 'Paris', code: 'PAR', country: 'FR' };
-    return <TouchableOpacity testID={testID} onPress={() => onSelect(city)} />;
-  },
-}));
+jest.mock('../../src/stores/searchStore', () => ({ setSearchQuery: jest.fn() }));
 
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
+jest.mock('../../src/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { email: 'alex.orban@example.com' } }),
+}));
+const mockSetCurrency = jest.fn();
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
     currency: { code: 'EUR', symbol: '€' },
-    currencies: [{ code: 'EUR', symbol: '€' }],
-    setCurrency: jest.fn(),
-    convert: (n: number) => n,
-    format: (n: number) => `€${n.toFixed(2)}`,
+    currencies: [{ code: 'EUR', symbol: '€' }, { code: 'USD', symbol: '$' }],
+    setCurrency: mockSetCurrency,
   }),
 }));
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
-  router: { canGoBack: () => false, back: jest.fn() },
-}));
+jest.mock('expo-router', () => {
+  const React = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: mockPush }),
+    useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
+    router: { canGoBack: () => false, back: jest.fn() },
+  };
+});
 
-const mockSearch = search as jest.Mock;
-const mockSetResults = setSearchResults as jest.Mock;
+const mockSetQuery = setSearchQuery as jest.Mock;
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(async () => {
+  jest.clearAllMocks();
+  await AsyncStorage.clear();
+});
+
+function pickCity(utils: ReturnType<typeof render>, side: 'from' | 'to', text: string, code: string) {
+  fireEvent.press(utils.getByTestId(`${side}-city`));
+  fireEvent.changeText(utils.getByTestId(`${side}-picker-input`), text);
+  fireEvent.press(utils.getByTestId(`${side}-picker-option-${code}`));
+}
 
 describe('SearchScreen', () => {
-  it('shows validation error when no departure city selected', () => {
-    const { getByTestId } = render(<SearchScreen />);
-    fireEvent.press(getByTestId('search-btn'));
-    expect(getByTestId('error').props.children).toBe('Select a departure city');
+  it('greets the user by name', () => {
+    const { getByText } = render(<SearchScreen />);
+    expect(getByText('Hi Alex 👋')).toBeTruthy();
   });
 
-  it('increments and decrements adults with bounds', () => {
+  it('defaults the departure date to tomorrow', () => {
     const { getByTestId } = render(<SearchScreen />);
-    expect(getByTestId('adults-count').props.children).toBe(1);
-
-    fireEvent.press(getByTestId('adults-plus'));
-    expect(getByTestId('adults-count').props.children).toBe(2);
-
-    fireEvent.press(getByTestId('adults-minus'));
-    expect(getByTestId('adults-count').props.children).toBe(1);
-
-    // Cannot go below 1
-    fireEvent.press(getByTestId('adults-minus'));
-    expect(getByTestId('adults-count').props.children).toBe(1);
+    expect(getByTestId('depart-date-value').props.children).toBe(formatDayLabel(addDays(todayISO(), 1)));
   });
 
-  it('calls search API and navigates to results on valid form', async () => {
-    const response = { results: [{ id: 'a:1' }], meta: { from: 'LON', to: 'PAR' } };
-    mockSearch.mockResolvedValue(response);
-
+  it('asks for a departure city first', () => {
     const { getByTestId } = render(<SearchScreen />);
-
-    // Select cities (mocked CityAutocomplete fires onSelect on press)
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
-
-    // Enter departure date (must be in the future — past dates are rejected)
-    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
-
-    // Search
     fireEvent.press(getByTestId('search-btn'));
+    expect(getByTestId('error').props.children).toBe('Choose where you’re leaving from');
+  });
 
-    await waitFor(() => {
-      expect(mockSearch).toHaveBeenCalledWith({
-        from: 'LON',
-        to: 'PAR',
-        departDate: '2030-04-15',
-        returnDate: undefined,
-        adults: 1,
-      });
-      expect(mockSetResults).toHaveBeenCalledWith(response.results, response.meta);
-      expect(mockPush).toHaveBeenCalledWith('/results');
+  it('asks for a destination once the origin is set', () => {
+    const utils = render(<SearchScreen />);
+    pickCity(utils, 'from', 'Lon', 'LON');
+    // Picking the origin flows straight on to the destination picker; close it.
+    fireEvent.press(utils.getByTestId('to-picker-close'));
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(utils.getByTestId('error').props.children).toBe('Choose your destination');
+  });
+
+  it('flows from origin straight to destination and searches', async () => {
+    const utils = render(<SearchScreen />);
+    pickCity(utils, 'from', 'Lon', 'LON');
+    fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Par');
+    fireEvent.press(utils.getByTestId('to-picker-option-PAR'));
+    fireEvent.press(utils.getByTestId('search-btn'));
+
+    expect(mockSetQuery).toHaveBeenCalledWith({
+      from: expect.objectContaining({ code: 'LON' }),
+      to: expect.objectContaining({ code: 'PAR' }),
+      departDate: addDays(todayISO(), 1),
+      adults: 1,
+    });
+    expect(mockPush).toHaveBeenCalledWith('/results');
+    // Saved as a recent search for next time.
+    await waitFor(async () => {
+      expect(await AsyncStorage.getItem('recent:alex.orban@example.com')).toContain('"LON"');
     });
   });
 
-  it('shows error on incomplete date format', () => {
-    const { getByTestId } = render(<SearchScreen />);
-
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
-    // Input auto-formats digits; an incomplete date fails format validation
-    fireEvent.changeText(getByTestId('depart-date'), '2030-04');
-    fireEvent.press(getByTestId('search-btn'));
-
-    expect(getByTestId('error').props.children).toBe('Departure date must be YYYY-MM-DD');
+  it('does not offer the origin city as destination', () => {
+    const utils = render(<SearchScreen />);
+    pickCity(utils, 'from', 'Lon', 'LON');
+    fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Lon');
+    expect(utils.queryByTestId('to-picker-option-LON')).toBeNull();
   });
 
-  // Impossible calendar dates can no longer be typed: the smart input clamps
-  // the day to the month's real length as you type (Feb 30 -> Feb 28).
-  it('clamps an impossible calendar date while typing', () => {
-    const { getByTestId } = render(<SearchScreen />);
-
-    fireEvent.changeText(getByTestId('depart-date'), '2030-02-30');
-
-    expect(getByTestId('depart-date').props.value).toBe('2030-02-28');
-  });
-
-  it('shows error on past departure date', () => {
-    const { getByTestId } = render(<SearchScreen />);
-
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
-    fireEvent.changeText(getByTestId('depart-date'), '2020-04-15');
-    fireEvent.press(getByTestId('search-btn'));
-
-    expect(getByTestId('error').props.children).toBe(
-      'Departure date cannot be in the past',
+  it('swaps origin and destination', () => {
+    const utils = render(<SearchScreen />);
+    pickCity(utils, 'from', 'Lon', 'LON');
+    fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Par');
+    fireEvent.press(utils.getByTestId('to-picker-option-PAR'));
+    fireEvent.press(utils.getByTestId('swap-cities'));
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(mockSetQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.objectContaining({ code: 'PAR' }), to: expect.objectContaining({ code: 'LON' }) }),
     );
   });
 
-  it('shows error when search API fails', async () => {
-    mockSearch.mockRejectedValue(new Error('Network error'));
+  it('picks a date from the calendar', () => {
+    const utils = render(<SearchScreen />);
+    const inAWeek = addDays(todayISO(), 7);
+    fireEvent.press(utils.getByTestId('depart-date'));
+    fireEvent.press(utils.getByTestId('calendar-week'));
+    expect(utils.getByTestId('depart-date-value').props.children).toBe(formatDayLabel(inAWeek));
+  });
 
+  it('disables past days in the calendar', () => {
+    const utils = render(<SearchScreen />);
+    fireEvent.press(utils.getByTestId('depart-date'));
+    const yesterday = addDays(todayISO(), -1);
+    const cell = utils.queryByTestId(`calendar-day-${yesterday}`);
+    // Yesterday may sit in the previous month (not rendered) — otherwise it must be disabled.
+    if (cell) expect(cell.props.accessibilityState.disabled).toBe(true);
+    expect(utils.getByTestId(`calendar-day-${todayISO()}`).props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('increments and decrements adults within 1–9', () => {
     const { getByTestId } = render(<SearchScreen />);
+    fireEvent.press(getByTestId('adults-minus'));
+    expect(getByTestId('adults-count').props.children).toBe(1);
+    for (let i = 0; i < 12; i++) fireEvent.press(getByTestId('adults-plus'));
+    expect(getByTestId('adults-count').props.children).toBe(9);
+  });
 
-    fireEvent.press(getByTestId('from-city'));
-    fireEvent.press(getByTestId('to-city'));
-    fireEvent.changeText(getByTestId('depart-date'), '2030-04-15');
-    fireEvent.press(getByTestId('search-btn'));
+  it('prefills from a popular route', () => {
+    const utils = render(<SearchScreen />);
+    fireEvent.press(utils.getByTestId('popular-LON-PAR'));
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(mockSetQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.objectContaining({ code: 'LON' }), to: expect.objectContaining({ code: 'PAR' }) }),
+    );
+  });
 
-    await waitFor(() => {
-      expect(getByTestId('error').props.children).toBe('Network error');
+  it('shows recent searches and refills from one', async () => {
+    const future = addDays(todayISO(), 20);
+    await AsyncStorage.setItem(
+      'recent:alex.orban@example.com',
+      JSON.stringify([{ from: { name: 'Berlin', code: 'BER', country: 'DE' }, to: { name: 'Prague', code: 'PRG', country: 'CZ' }, departDate: future, adults: 2 }]),
+    );
+    const utils = render(<SearchScreen />);
+    const card = await utils.findByTestId('recent-BER-PRG');
+    fireEvent.press(card);
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(mockSetQuery).toHaveBeenCalledWith({
+      from: expect.objectContaining({ code: 'BER' }),
+      to: expect.objectContaining({ code: 'PRG' }),
+      departDate: future,
+      adults: 2,
     });
+  });
+
+  it('cycles currency from the hero pill', () => {
+    const { getByTestId } = render(<SearchScreen />);
+    fireEvent.press(getByTestId('currency-pill'));
+    expect(mockSetCurrency).toHaveBeenCalledWith({ code: 'USD', symbol: '$' });
   });
 });
