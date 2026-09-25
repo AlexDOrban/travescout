@@ -8,6 +8,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { ColorPalette } from '../constants/colors';
 import {
   groundSegments,
@@ -125,8 +126,11 @@ export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange,
         accessibilityState={{ expanded: open }}
         accessibilityLabel="View route on map"
       >
-        <Text style={{ color: colors.accent, fontWeight: '600' }}>🗺  View route on map</Text>
-        <Text style={{ color: colors.textSecondary }}>{open ? '▲' : '▼'}</Text>
+        <View style={styles.toggleLabel}>
+          <Ionicons name="map-outline" size={18} color={colors.accent} />
+          <Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>Getting there · view on map</Text>
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
       </TouchableOpacity>
 
       {open && (
@@ -182,9 +186,10 @@ export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange,
                     key={app.key}
                     testID={`route-segment-${i}-${app.key}`}
                     onPress={() => openUrl(app.url(seg, mode))}
-                    style={[styles.appBtn, { borderColor: colors.border }]}
+                    style={[styles.appBtn, { backgroundColor: colors.accentSoft }]}
                   >
-                    <Text style={{ color: colors.accent, fontSize: 13 }}>{app.label}</Text>
+                    <Ionicons name={app.key === 'apple' ? 'logo-apple' : 'logo-google'} size={14} color={colors.accent} />
+                    <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{app.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -202,13 +207,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
+  toggleLabel: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   menu: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     marginTop: 6,
     overflow: 'hidden',
   },
@@ -224,10 +230,10 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
   },
   segment: {
     paddingHorizontal: 14,
@@ -243,8 +249,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   appBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },

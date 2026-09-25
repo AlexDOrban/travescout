@@ -9,9 +9,9 @@ import { haptic } from '../../src/utils/haptics';
 type IconName = keyof typeof Ionicons.glyphMap;
 
 function tabIcon(active: IconName, inactive: IconName) {
-  return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Ionicons name={focused ? active : inactive} size={23} color={color} />
-  );
+  return function TabIcon({ color, focused }: { color: string; focused: boolean }) {
+    return <Ionicons name={focused ? active : inactive} size={23} color={color} />;
+  };
 }
 
 export default function TabsLayout() {

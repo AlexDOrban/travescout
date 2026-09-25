@@ -1,38 +1,44 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, act } from '@testing-library/react-native';
 import MyTripsScreen from '../../app/(tabs)/trips';
 import { getTrips } from '../../src/api/booking';
 import { getItineraries } from '../../src/api/itinerary';
+import type { BookedTrip } from '../../src/types/booking';
 
 jest.mock('../../src/api/booking');
 jest.mock('../../src/api/itinerary');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
-  useCurrency: () => ({
-    currency: { code: 'EUR', symbol: '€' },
-    currencies: [{ code: 'EUR', symbol: '€' }],
-    setCurrency: jest.fn(),
-    format: (n: number) => `€${n.toFixed(2)}`,
-  }),
+  useCurrency: () => ({ format: (n: number) => `€${n.toFixed(2)}` }),
 }));
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn() }),
-  useFocusEffect: (cb: () => void) => {
-    const React = require('react');
-    React.useEffect(() => { cb(); }, []);
-  },
-}));
+const mockNavigate = jest.fn();
+let mockFocus: (() => void) | null = null;
+jest.mock('expo-router', () => {
+  const React = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: jest.fn(), navigate: mockNavigate }),
+    useFocusEffect: (cb: () => void) => {
+      mockFocus = cb;
+      React.useEffect(cb, [cb]);
+    },
+    router: { canGoBack: () => false, back: jest.fn() },
+  };
+});
 
 const mockGetTrips = getTrips as jest.Mock;
 const mockGetItineraries = getItineraries as jest.Mock;
+
+const trip = (over: Partial<BookedTrip>): BookedTrip => ({
+  id: '1', provider: 'flixbus', booking_ref: 'FB-001',
+  origin: 'LON', destination: 'PAR',
+  depart_at: '2030-04-15T06:30:00Z', arrive_at: '2030-04-15T11:00:00Z', return_at: null,
+  price_eur: '18.00', currency_display: 'EUR',
+  status: 'confirmed', raw_ticket_url: null,
+  created_at: '2026-03-18T10:00:00Z',
+  ...over,
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -40,132 +46,105 @@ beforeEach(() => {
 });
 
 describe('MyTripsScreen', () => {
-  it('renders trip cards after loading', async () => {
-    mockGetTrips.mockResolvedValue({
-      trips: [
-        {
-          id: '1', provider: 'flixbus', booking_ref: 'FB-001',
-          origin: 'LON', destination: 'PAR',
-          depart_at: '2030-04-15T06:30:00Z', return_at: null,
-          price_eur: '18.00', currency_display: 'EUR',
-          status: 'confirmed', raw_ticket_url: null,
-          created_at: '2026-03-18T10:00:00Z',
-        },
-      ],
-    });
-
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText('LON → PAR')).toBeTruthy();
-    expect(await findByText('FB-001')).toBeTruthy();
+  it('renders an upcoming trip as a ticket with its reference', async () => {
+    mockGetTrips.mockResolvedValue({ trips: [trip({})] });
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByTestId('trip-card')).toBeTruthy();
+    expect(utils.getAllByText('LON → PAR').length).toBeGreaterThan(0);
+    expect(utils.getByText('FB-001')).toBeTruthy();
+    expect(utils.getAllByText(/confirmed/i).length).toBeGreaterThan(0);
+    expect(utils.getByTestId('next-countdown')).toBeTruthy();
   });
 
-  it('shows empty state when no trips', async () => {
+  it('splits upcoming and past trips', async () => {
+    mockGetTrips.mockResolvedValue({
+      trips: [
+        trip({ id: 'a', booking_ref: 'FUTURE', depart_at: '2030-04-15T06:30:00Z', arrive_at: '2030-04-15T11:00:00Z' }),
+        trip({ id: 'b', booking_ref: 'OLD', origin: 'AMS', destination: 'BRU', depart_at: '2020-01-01T06:30:00Z', arrive_at: '2020-01-01T09:00:00Z' }),
+      ],
+    });
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByText('FUTURE')).toBeTruthy();
+    expect(utils.queryByText('OLD')).toBeNull();
+    fireEvent.press(utils.getByTestId('trips-past'));
+    expect(utils.getByText('OLD')).toBeTruthy();
+    expect(utils.queryByText('FUTURE')).toBeNull();
+  });
+
+  it('shows the empty state with a way to search', async () => {
     mockGetTrips.mockResolvedValue({ trips: [] });
-
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText('No trips yet')).toBeTruthy();
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByText('No trips yet')).toBeTruthy();
+    fireEvent.press(utils.getByText('Find a trip'));
+    expect(mockNavigate).toHaveBeenCalledWith('/(tabs)');
   });
 
-  it('shows error when API fails', async () => {
-    mockGetTrips.mockRejectedValue(new Error('Network error'));
-
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText('Network error')).toBeTruthy();
-  });
-
-  it('shows status badge', async () => {
-    mockGetTrips.mockResolvedValue({
-      trips: [
-        {
-          id: '1', provider: 'flixbus', booking_ref: 'FB-001',
-          origin: 'LON', destination: 'PAR',
-          depart_at: '2030-04-15T06:30:00Z', return_at: null,
-          price_eur: '18.00', currency_display: 'EUR',
-          status: 'confirmed', raw_ticket_url: null,
-          created_at: '2026-03-18T10:00:00Z',
-        },
-      ],
+  it('shows an error with retry when nothing is loaded', async () => {
+    mockGetTrips.mockRejectedValueOnce(new Error('Network error'));
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByText('Network error')).toBeTruthy();
+    mockGetTrips.mockResolvedValue({ trips: [trip({})] });
+    await act(async () => {
+      fireEvent.press(utils.getByTestId('trips-retry'));
     });
-
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText(/confirmed/i)).toBeTruthy();
+    expect(await utils.findByText('FB-001')).toBeTruthy();
   });
 
-  it('renders itinerary card with booking ref', async () => {
+  it('keeps showing trips (no spinner) when a refocus refresh fails', async () => {
+    mockGetTrips.mockResolvedValue({ trips: [trip({})] });
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByText('FB-001')).toBeTruthy();
+    mockGetTrips.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      mockFocus?.();
+    });
+    expect(utils.getByText('FB-001')).toBeTruthy();
+    expect(utils.queryByTestId('trips-loading')).toBeNull();
+    expect(utils.getByTestId('trips-error')).toBeTruthy();
+  });
+
+  it('renders itineraries with their legs and reference', async () => {
     mockGetTrips.mockResolvedValue({ trips: [] });
     mockGetItineraries.mockResolvedValue({
       itineraries: [
         {
-          id: 'iti-1',
-          booking_ref: 'ITI-ABC',
-          origin: 'LON',
-          destination: 'BCN',
-          depart_at: '2030-06-01T08:00:00Z',
-          arrive_at: '2030-06-01T18:00:00Z',
-          total_price_eur: '95.00',
-          status: 'confirmed',
+          id: 'iti-1', booking_ref: 'ITI-ABC', origin: 'LON', destination: 'BCN',
+          depart_at: '2030-06-01T08:00:00Z', arrive_at: '2030-06-01T18:00:00Z',
+          total_price_eur: '95.00', status: 'confirmed',
           legs: [
-            {
-              id: 'leg-1', provider: 'flixbus', booking_ref: 'FB-LEG-1',
-              origin: 'LON', destination: 'PAR',
-              depart_at: '2030-06-01T08:00:00Z', return_at: null,
-              price_eur: '45.00', currency_display: 'EUR',
-              status: 'confirmed', raw_ticket_url: null,
-              created_at: '2026-03-18T10:00:00Z',
-              itinerary_id: 'iti-1', leg_order: 0,
-            },
-            {
-              id: 'leg-2', provider: 'rail', booking_ref: 'RL-LEG-2',
-              origin: 'PAR', destination: 'BCN',
-              depart_at: '2030-06-01T14:00:00Z', return_at: null,
-              price_eur: '50.00', currency_display: 'EUR',
-              status: 'confirmed', raw_ticket_url: null,
-              created_at: '2026-03-18T10:00:00Z',
-              itinerary_id: 'iti-1', leg_order: 1,
-            },
+            trip({ id: 'leg-1', booking_ref: 'FB-LEG-1', origin: 'LON', destination: 'PAR', depart_at: '2030-06-01T08:00:00Z' }),
+            trip({ id: 'leg-2', provider: 'rail', booking_ref: 'RL-LEG-2', origin: 'PAR', destination: 'BCN', depart_at: '2030-06-01T14:00:00Z' }),
           ],
         },
       ],
     });
-
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText('LON → BCN')).toBeTruthy();
-    expect(await findByText(/ITI-ABC/)).toBeTruthy();
+    const utils = render(<MyTripsScreen />);
+    expect(await utils.findByText('LON → BCN')).toBeTruthy();
+    expect(utils.getByText(/ITI-ABC/)).toBeTruthy();
+    expect(utils.getAllByTestId('expandable-leg')).toHaveLength(2);
   });
 
-  it('renders standalone trips alongside itineraries', async () => {
-    mockGetTrips.mockResolvedValue({
-      trips: [
-        {
-          id: 'trip-1', provider: 'flixbus', booking_ref: 'FB-STANDALONE',
-          origin: 'AMS', destination: 'BRU',
-          depart_at: '2030-05-10T09:00:00Z', return_at: null,
-          price_eur: '22.00', currency_display: 'EUR',
-          status: 'confirmed', raw_ticket_url: null,
-          created_at: '2026-03-18T10:00:00Z',
-        },
-      ],
-    });
+  it('orders upcoming bookings soonest first across trips and itineraries', async () => {
+    mockGetTrips.mockResolvedValue({ trips: [trip({ id: 't', booking_ref: 'LATER', depart_at: '2030-08-01T09:00:00Z', arrive_at: '2030-08-01T12:00:00Z' })] });
     mockGetItineraries.mockResolvedValue({
-      itineraries: [
-        {
-          id: 'iti-2',
-          booking_ref: 'ITI-XYZ',
-          origin: 'LON',
-          destination: 'MAD',
-          depart_at: '2030-07-01T07:00:00Z',
-          arrive_at: '2030-07-01T17:00:00Z',
-          total_price_eur: '120.00',
-          status: 'confirmed',
-          legs: [],
-        },
-      ],
+      itineraries: [{
+        id: 'i', booking_ref: 'SOONER', origin: 'LON', destination: 'MAD',
+        depart_at: '2030-07-01T07:00:00Z', arrive_at: '2030-07-01T17:00:00Z',
+        total_price_eur: '120.00', status: 'confirmed', legs: [],
+      }],
     });
+    const utils = render(<MyTripsScreen />);
+    await utils.findByText(/SOONER/);
+    const cards = utils.getAllByTestId(/^(itinerary|trip)-card$/).map(c => c.props.testID);
+    expect(cards).toEqual(['itinerary-card', 'trip-card']);
+  });
 
-    const { findByText } = render(<MyTripsScreen />);
-    expect(await findByText('AMS → BRU')).toBeTruthy();
-    expect(await findByText('FB-STANDALONE')).toBeTruthy();
-    expect(await findByText('LON → MAD')).toBeTruthy();
-    expect(await findByText(/ITI-XYZ/)).toBeTruthy();
+  it('reveals the QR code when a ticket is expanded', async () => {
+    mockGetTrips.mockResolvedValue({ trips: [trip({ ticket_qr_data: 'QR-DATA' })] });
+    const utils = render(<MyTripsScreen />);
+    await utils.findByText('FB-001');
+    expect(utils.queryByTestId('qr-code')).toBeNull();
+    fireEvent.press(utils.getByTestId('expandable-leg'));
+    expect(utils.getByTestId('qr-code')).toBeTruthy();
   });
 });
