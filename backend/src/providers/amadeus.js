@@ -1,5 +1,6 @@
 const Amadeus = require('amadeus');
 const { getHubsForCity } = require('../data/hubs');
+const { stubFare } = require('./stubPricing');
 
 // Single client: each instance manages its own OAuth token, so per-request
 // construction refetches tokens and burns rate limit.
@@ -54,7 +55,7 @@ function stubOffers(params) {
   const from = airportFor(params.from);
   const to = airportFor(params.to);
   const seed = routeSeed(from, to);
-  const basePrice = 45 + (seed % 60); // €45–€104 per person
+  const basePrice = stubFare(45 + (seed % 60), params.departDate); // ~€40–€150 per person
   const durationMins = 75 + (seed % 90); // 1h15m–2h44m direct
 
   const offer = (idSuffix, departHour, departMin, flightMins, price, stops) => {

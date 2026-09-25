@@ -8,6 +8,8 @@
  * @param {{ from: string, to: string, departDate: string, adults: number, returnDate?: string }} params
  * @returns {Promise<Object[]>} Raw FlixBus-shaped results
  */
+const { stubFare } = require('./stubPricing');
+
 async function search(params) {
   // Stub: returns realistic FlixBus-shaped data
   const base = new Date(`${params.departDate}T06:30:00Z`);
@@ -16,7 +18,7 @@ async function search(params) {
   return [
     {
       id: `flixbus-${params.from}-${params.to}-${params.departDate}-001`,
-      price: { amount: 18 * params.adults, currency: 'EUR' },
+      price: { amount: stubFare(18, params.departDate) * params.adults, currency: 'EUR' },
       departure_time: base.toISOString(),
       arrival_time: arrive.toISOString(),
       duration_minutes: 270,
@@ -27,7 +29,7 @@ async function search(params) {
     },
     {
       id: `flixbus-${params.from}-${params.to}-${params.departDate}-002`,
-      price: { amount: 24 * params.adults, currency: 'EUR' },
+      price: { amount: stubFare(24, params.departDate) * params.adults, currency: 'EUR' },
       departure_time: new Date(`${params.departDate}T14:00:00Z`).toISOString(),
       arrival_time: new Date(`${params.departDate}T18:30:00Z`).toISOString(),
       duration_minutes: 270,

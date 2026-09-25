@@ -9,6 +9,8 @@
  * @param {{ from: string, to: string, departDate: string, adults: number, returnDate?: string }} params
  * @returns {Promise<Object[]>} Raw rail-shaped results
  */
+const { stubFare } = require('./stubPricing');
+
 async function search(params) {
   const base = new Date(`${params.departDate}T09:01:00Z`);
   const arrive = new Date(base.getTime() + 2.25 * 60 * 60 * 1000);
@@ -16,7 +18,7 @@ async function search(params) {
   return [
     {
       id: `rail-${params.from}-${params.to}-${params.departDate}-001`,
-      fare_price: { amount: 39 * params.adults, currency: 'EUR' },
+      fare_price: { amount: stubFare(39, params.departDate) * params.adults, currency: 'EUR' },
       departs_at: base.toISOString(),
       arrives_at: arrive.toISOString(),
       duration_minutes: 135,
@@ -27,7 +29,7 @@ async function search(params) {
     },
     {
       id: `rail-${params.from}-${params.to}-${params.departDate}-002`,
-      fare_price: { amount: 55 * params.adults, currency: 'EUR' },
+      fare_price: { amount: stubFare(55, params.departDate) * params.adults, currency: 'EUR' },
       departs_at: new Date(`${params.departDate}T11:30:00Z`).toISOString(),
       arrives_at: new Date(`${params.departDate}T14:15:00Z`).toISOString(),
       duration_minutes: 165,

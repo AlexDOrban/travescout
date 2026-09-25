@@ -7,6 +7,7 @@ const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const connectionSearchRouter = require('./routes/connectionSearch');
 const searchRouter = require('./routes/search');
+const searchPricesRouter = require('./routes/searchPrices');
 const bookingRouter = require('./routes/booking');
 const tripsRouter = require('./routes/trips');
 const itineraryBookingRoutes = require('./routes/itineraryBooking');
@@ -45,6 +46,7 @@ function createApp() {
   app.use('/health', healthRouter);
   app.use('/auth', authLimiter, authRouter);
   app.use('/search/connections', searchLimiter, connectionSearchRouter);
+  app.use('/search/prices', searchLimiter, searchPricesRouter);
   app.use('/search', searchLimiter, searchRouter);
   // The '/book' prefix limiter also covers '/book/itinerary'.
   app.use('/book', bookingLimiter, bookingRouter);
