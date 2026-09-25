@@ -4,8 +4,15 @@ function validateDate(dateStr, fieldName) {
   if (!DATE_RE.test(dateStr)) {
     throw Object.assign(new Error(`${fieldName} must be YYYY-MM-DD`), { status: 400 });
   }
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) {
+  // `new Date('2030-02-30')` silently rolls over to March 2, so round-trip the
+  // parsed components to reject dates that don't exist.
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
     throw Object.assign(new Error(`${fieldName} is not a valid calendar date`), { status: 400 });
   }
 }
@@ -17,7 +24,13 @@ function parseSearchParams(query) {
   if (!to) throw Object.assign(new Error('to is required'), { status: 400 });
   if (!departDate) throw Object.assign(new Error('departDate is required'), { status: 400 });
   validateDate(departDate, 'departDate');
-  if (returnDate) validateDate(returnDate, 'returnDate');
+  if (returnDate) {
+    validateDate(returnDate, 'returnDate');
+    // YYYY-MM-DD compares correctly as a string.
+    if (returnDate < departDate) {
+      throw Object.assign(new Error('returnDate must not be before departDate'), { status: 400 });
+    }
+  }
 
   const parsedAdults = adults ? parseInt(adults, 10) : 1;
   if (isNaN(parsedAdults) || parsedAdults <= 0 || parsedAdults > 9) {

@@ -32,6 +32,21 @@ describe('parseSearchParams', () => {
     expect(() => parseSearchParams({ ...valid, departDate: '15-04-2026' })).toThrow();
   });
 
+  it('throws on an impossible calendar date (JS would roll 02-30 into March)', () => {
+    expect(() => parseSearchParams({ ...valid, departDate: '2030-02-30' })).toThrow(/valid calendar date/);
+    expect(() => parseSearchParams({ ...valid, departDate: '2030-13-01' })).toThrow(/valid calendar date/);
+    expect(() => parseSearchParams({ ...valid, departDate: '2030-04-31' })).toThrow(/valid calendar date/);
+  });
+
+  it('accepts Feb 29 only in leap years', () => {
+    expect(parseSearchParams({ ...valid, departDate: '2028-02-29' }).departDate).toBe('2028-02-29');
+    expect(() => parseSearchParams({ ...valid, departDate: '2027-02-29' })).toThrow();
+  });
+
+  it('throws if returnDate is before departDate', () => {
+    expect(() => parseSearchParams({ ...valid, returnDate: '2026-04-14' })).toThrow(/returnDate/);
+  });
+
   it('accepts optional returnDate in YYYY-MM-DD format', () => {
     const result = parseSearchParams({ ...valid, returnDate: '2026-04-18' });
     expect(result.returnDate).toBe('2026-04-18');
