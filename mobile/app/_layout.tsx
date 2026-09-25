@@ -11,6 +11,12 @@ function ThemedStatusBar() {
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
 }
 
+// Themed scene background so screen transitions never flash white in dark mode.
+function ThemedStack() {
+  const { colors } = useTheme();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />;
+}
+
 // Redirect to login whenever the session ends — including a forced sign-out
 // that happens on a root-level checkout screen (which is outside the tabs auth
 // gate). Prevents the "live Pay button after session expiry" dead end.
@@ -38,7 +44,7 @@ export default function RootLayout() {
           <AuthProvider>
             <ThemedStatusBar />
             <AuthGate>
-              <Stack screenOptions={{ headerShown: false }} />
+              <ThemedStack />
             </AuthGate>
           </AuthProvider>
         </CurrencyProvider>

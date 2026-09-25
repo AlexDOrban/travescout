@@ -35,9 +35,15 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     fetch('https://api.frankfurter.app/latest?from=EUR&to=USD,GBP')
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : null))
       .then(data => {
-        if (!cancelled) setRates({ EUR: 1, ...data.rates });
+        // Only accept positive numeric rates; a changed/erroring payload used
+        // to replace the fallbacks with {EUR: 1}, showing USD/GBP at par.
+        const live: Record<string, number> = {};
+        for (const [code, rate] of Object.entries(data?.rates ?? {})) {
+          if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) live[code] = rate;
+        }
+        if (!cancelled) setRates({ ...FALLBACK_RATES, ...live, EUR: 1 });
       })
       .catch(() => {}); // keep fallback on network error
 
