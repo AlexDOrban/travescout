@@ -8,6 +8,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { Button } from '../../src/components/ui/Button';
+import { HeroStatusBar } from '../../src/components/HeroStatusBar';
 import { Card } from '../../src/components/ui/Card';
 import { CityPickerSheet } from '../../src/components/CityPickerSheet';
 import { CalendarSheet } from '../../src/components/CalendarSheet';
@@ -99,6 +100,7 @@ export default function SearchScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <HeroStatusBar />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
         <LinearGradient
           colors={[colors.heroStart, colors.heroEnd]}

@@ -5,6 +5,7 @@ import RegisterScreen from '../../app/(auth)/register';
 
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
+  useFocusEffect: jest.fn(),
 }));
 
 jest.mock('../../src/contexts/AuthContext', () => ({

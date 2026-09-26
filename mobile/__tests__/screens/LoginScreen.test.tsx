@@ -5,6 +5,7 @@ import LoginScreen from '../../app/(auth)/login';
 
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
+  useFocusEffect: jest.fn(),
   useRouter: () => ({ replace: jest.fn() }),
 }));
 

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { Card } from './ui/Card';
+import { HeroStatusBar } from './HeroStatusBar';
 
 // Shared shell for login/register: brand hero on a gradient with the form
 // in a card that overlaps it.
@@ -23,6 +24,7 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <HeroStatusBar />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 24 }}>
         <LinearGradient
           colors={[colors.heroStart, colors.heroEnd]}
