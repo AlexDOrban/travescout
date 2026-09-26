@@ -5,13 +5,7 @@ import { getBookingResult, clearCheckout } from '../../src/stores/checkoutStore'
 
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({

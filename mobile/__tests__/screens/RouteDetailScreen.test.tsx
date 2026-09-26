@@ -7,13 +7,7 @@ import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkout
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -67,7 +61,7 @@ describe('TripDetailScreen', () => {
   it('renders tag badges', () => {
     mockGetById.mockReturnValue(MOCK_TRIP);
     const { getByText } = render(<TripDetailScreen />);
-    expect(getByText('CHEAPEST')).toBeTruthy();
+    expect(getByText('Cheapest')).toBeTruthy();
   });
 
   it('shows not found when trip is missing', () => {
@@ -91,7 +85,7 @@ describe('TripDetailScreen', () => {
   it('shows provider name', () => {
     mockGetById.mockReturnValue(MOCK_TRIP);
     const { getByTestId } = render(<TripDetailScreen />);
-    expect(getByTestId('detail-provider').props.children).toBe('amadeus');
+    expect(getByTestId('detail-provider').props.children).toBe('Air partners');
   });
 
   it('Book Now sets checkout trip and navigates to transfer', () => {
@@ -100,6 +94,21 @@ describe('TripDetailScreen', () => {
     fireEvent.press(getByTestId('book-btn'));
     expect(mockSetCheckoutTrip).toHaveBeenCalledWith(MOCK_TRIP, 1);
     expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
+  });
+
+  it('shows city names from the search in the journey timeline', () => {
+    mockGetById.mockReturnValue(MOCK_TRIP);
+    (jest.requireMock('../../src/stores/searchStore').getSearchQuery as jest.Mock).mockReturnValue({
+      from: { name: 'London', code: 'LON', country: 'UK' },
+      to: { name: 'Paris', code: 'PAR', country: 'FR' },
+      departDate: '2026-04-15',
+      adults: 2,
+    });
+    mockGetSearchMeta.mockReturnValue({ adults: 2 });
+    const { getByText } = render(<TripDetailScreen />);
+    expect(getByText('London')).toBeTruthy();
+    expect(getByText('Paris')).toBeTruthy();
+    expect(getByText('Total · 2 adults')).toBeTruthy();
   });
 
   it('navigates to connections screen when Add Connections pressed', () => {

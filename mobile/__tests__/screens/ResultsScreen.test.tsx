@@ -81,8 +81,16 @@ function startQuery(departDate = DATE) {
   setSearchQuery({ from: LON, to: PAR, departDate, adults: 1 });
 }
 
-const ids = (utils: ReturnType<typeof render>) =>
+const ids = (utils: Awaited<ReturnType<typeof renderSettled>>) =>
   utils.getAllByTestId(/^trip-/).map(n => n.props.testID);
+
+// Render and let mount-time async effects (storage reads, fetches) settle
+// inside act(), so they don't update state after the test has finished.
+async function renderSettled(ui: React.ReactElement) {
+  const utils = render(ui);
+  await act(async () => {});
+  return utils;
+}
 
 describe('ResultsScreen', () => {
   it('fetches on arrival, showing skeletons until results land', async () => {
@@ -98,21 +106,21 @@ describe('ResultsScreen', () => {
   it('does not refetch when the store already holds this search', async () => {
     startQuery();
     setSearchResults([FLIGHT], meta());
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     expect(utils.getByTestId('trip-amadeus:1')).toBeTruthy();
     expect(mockSearch).not.toHaveBeenCalled();
   });
 
   it('shows the route with city names and date', async () => {
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     expect(utils.getByText('London → Paris')).toBeTruthy();
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
   });
 
   it('sorts by Best (score) by default and by price, duration and time on demand', async () => {
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     expect(ids(utils)).toEqual(['trip-rail:1', 'trip-flixbus:1', 'trip-amadeus:1']);
     fireEvent.press(utils.getByTestId('sort-price'));
@@ -125,7 +133,7 @@ describe('ResultsScreen', () => {
 
   it('filters by mode and shows the cheapest fare on each mode tab', async () => {
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     expect(utils.getAllByText('€19')).toHaveLength(2); // All + Bus tabs
     expect(utils.getByText('€42.50')).toBeTruthy(); // Flight tab
@@ -138,7 +146,7 @@ describe('ResultsScreen', () => {
   it('offers to clear an empty mode filter', async () => {
     mockSearch.mockResolvedValue({ results: [TRAIN], meta: meta() });
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     fireEvent.press(utils.getByTestId('filter-bus'));
     expect(utils.getByTestId('empty-text')).toBeTruthy();
@@ -152,7 +160,7 @@ describe('ResultsScreen', () => {
       prices: [{ date: DATE, minPriceEur: 19 }, { date: next, minPriceEur: 15 }],
     });
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId(`date-price-${next}`)).toBeTruthy());
     expect(utils.getByTestId(`date-price-${next}`).props.children).toBe('€15');
     expect(mockPrices).toHaveBeenCalledWith(expect.objectContaining({ from: 'LON', to: 'PAR', startDate: addDays(DATE, -3), days: 7 }));
@@ -166,7 +174,7 @@ describe('ResultsScreen', () => {
   it('never offers days before today in the strip', async () => {
     const tomorrow = addDays(todayISO(), 1);
     startQuery(tomorrow);
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     expect(utils.queryByTestId(`date-${addDays(todayISO(), -1)}`)).toBeNull();
     expect(utils.getByTestId(`date-${todayISO()}`)).toBeTruthy();
@@ -174,7 +182,7 @@ describe('ResultsScreen', () => {
 
   it('tracks and untracks the price as an alert', async () => {
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     await act(async () => {
       fireEvent.press(utils.getByTestId('watch-price'));
@@ -191,7 +199,7 @@ describe('ResultsScreen', () => {
   it('shows an error with retry', async () => {
     mockSearch.mockRejectedValueOnce(new Error('Network error'));
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByText('Network error')).toBeTruthy());
     await act(async () => {
       fireEvent.press(utils.getByTestId('results-retry'));
@@ -202,21 +210,21 @@ describe('ResultsScreen', () => {
   it('shows a banner when some providers failed', async () => {
     mockSearch.mockResolvedValue({ results: [TRAIN], meta: meta(DATE, { providersFailed: ['amadeus'] }) });
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('providers-failed-banner')).toBeTruthy());
   });
 
   it('opens trip detail from a card', async () => {
     startQuery();
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     await waitFor(() => expect(utils.getByTestId('trip-rail:1')).toBeTruthy());
     fireEvent.press(utils.getByTestId('trip-rail:1'));
     expect(mockPush).toHaveBeenCalledWith('/trip/rail:1');
   });
 
-  it('still renders stored results without a query (legacy entry)', () => {
+  it('still renders stored results without a query (legacy entry)', async () => {
     setSearchResults([FLIGHT, TRAIN], meta());
-    const utils = render(<ResultsScreen />);
+    const utils = await renderSettled(<ResultsScreen />);
     expect(utils.getByTestId('trip-amadeus:1')).toBeTruthy();
     expect(utils.getByText('LON → PAR')).toBeTruthy();
   });

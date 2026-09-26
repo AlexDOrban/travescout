@@ -45,10 +45,18 @@ beforeEach(() => {
   mockGetItineraries.mockResolvedValue({ itineraries: [] });
 });
 
+// Render and let mount-time async effects (storage reads, fetches) settle
+// inside act(), so they don't update state after the test has finished.
+async function renderSettled(ui: React.ReactElement) {
+  const utils = render(ui);
+  await act(async () => {});
+  return utils;
+}
+
 describe('MyTripsScreen', () => {
   it('renders an upcoming trip as a ticket with its reference', async () => {
     mockGetTrips.mockResolvedValue({ trips: [trip({})] });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByTestId('trip-card')).toBeTruthy();
     expect(utils.getAllByText('LON → PAR').length).toBeGreaterThan(0);
     expect(utils.getByText('FB-001')).toBeTruthy();
@@ -63,7 +71,7 @@ describe('MyTripsScreen', () => {
         trip({ id: 'b', booking_ref: 'OLD', origin: 'AMS', destination: 'BRU', depart_at: '2020-01-01T06:30:00Z', arrive_at: '2020-01-01T09:00:00Z' }),
       ],
     });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByText('FUTURE')).toBeTruthy();
     expect(utils.queryByText('OLD')).toBeNull();
     fireEvent.press(utils.getByTestId('trips-past'));
@@ -73,7 +81,7 @@ describe('MyTripsScreen', () => {
 
   it('shows the empty state with a way to search', async () => {
     mockGetTrips.mockResolvedValue({ trips: [] });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByText('No trips yet')).toBeTruthy();
     fireEvent.press(utils.getByText('Find a trip'));
     expect(mockNavigate).toHaveBeenCalledWith('/(tabs)');
@@ -81,7 +89,7 @@ describe('MyTripsScreen', () => {
 
   it('shows an error with retry when nothing is loaded', async () => {
     mockGetTrips.mockRejectedValueOnce(new Error('Network error'));
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByText('Network error')).toBeTruthy();
     mockGetTrips.mockResolvedValue({ trips: [trip({})] });
     await act(async () => {
@@ -92,7 +100,7 @@ describe('MyTripsScreen', () => {
 
   it('keeps showing trips (no spinner) when a refocus refresh fails', async () => {
     mockGetTrips.mockResolvedValue({ trips: [trip({})] });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByText('FB-001')).toBeTruthy();
     mockGetTrips.mockRejectedValueOnce(new Error('offline'));
     await act(async () => {
@@ -118,7 +126,7 @@ describe('MyTripsScreen', () => {
         },
       ],
     });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     expect(await utils.findByText('LON → BCN')).toBeTruthy();
     expect(utils.getByText(/ITI-ABC/)).toBeTruthy();
     expect(utils.getAllByTestId('expandable-leg')).toHaveLength(2);
@@ -133,7 +141,7 @@ describe('MyTripsScreen', () => {
         total_price_eur: '120.00', status: 'confirmed', legs: [],
       }],
     });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     await utils.findByText(/SOONER/);
     const cards = utils.getAllByTestId(/^(itinerary|trip)-card$/).map(c => c.props.testID);
     expect(cards).toEqual(['itinerary-card', 'trip-card']);
@@ -141,7 +149,7 @@ describe('MyTripsScreen', () => {
 
   it('reveals the QR code when a ticket is expanded', async () => {
     mockGetTrips.mockResolvedValue({ trips: [trip({ ticket_qr_data: 'QR-DATA' })] });
-    const utils = render(<MyTripsScreen />);
+    const utils = await renderSettled(<MyTripsScreen />);
     await utils.findByText('FB-001');
     expect(utils.queryByTestId('qr-code')).toBeNull();
     fireEvent.press(utils.getByTestId('expandable-leg'));

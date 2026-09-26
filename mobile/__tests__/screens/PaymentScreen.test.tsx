@@ -17,13 +17,7 @@ jest.mock('../../src/utils/transferPrefs');
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/api/booking');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -81,7 +75,7 @@ describe('PaymentScreen', () => {
 
   it('displays total amount on pay button', () => {
     const { getByText } = render(<PaymentScreen />);
-    expect(getByText(/€42\.50/)).toBeTruthy();
+    expect(getByText('Pay €42.50')).toBeTruthy();
   });
 
   it('calls book API and navigates to confirmation on success', async () => {
@@ -165,5 +159,12 @@ describe('PaymentScreen', () => {
     await waitFor(() => {
       expect(getByTestId('error').props.children).toBe('Payment failed');
     });
+  });
+
+  it('previews the card brand and holder as the user types', () => {
+    const { getByTestId, getByText } = render(<PaymentScreen />);
+    fireEvent.changeText(getByTestId('card-number'), '5555');
+    expect(getByTestId('card-brand').props.children).toBe('Mastercard');
+    expect(getByText('JOHN DOE')).toBeTruthy();
   });
 });

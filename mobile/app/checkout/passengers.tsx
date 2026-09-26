@@ -3,20 +3,25 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper } from '../../src/components/Stepper';
+import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { Card } from '../../src/components/ui/Card';
+import { BottomBar } from '../../src/components/ui/BottomBar';
+import { EmptyState } from '../../src/components/ui/EmptyState';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
   getCheckoutItinerary,
+  getPassengers,
   setPassengers,
 } from '../../src/stores/checkoutStore';
 import type { Passenger } from '../../src/types/booking';
@@ -25,22 +30,25 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function PassengersScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const router = useRouter();
   const trip = getCheckoutTrip();
   const itinerary = getCheckoutItinerary();
   const adults = getCheckoutAdults();
-  const [forms, setForms] = useState<Passenger[]>(
-    Array.from({ length: adults }, () => ({ name: '', email: '' })),
-  );
+  const [forms, setForms] = useState<Passenger[]>(() => {
+    // Returning to this step keeps what was entered; otherwise the lead
+    // passenger's email defaults to the account email (tickets go there).
+    const saved = getPassengers();
+    if (saved.length === adults) return saved;
+    return Array.from({ length: adults }, (_, i) => ({ name: '', email: i === 0 ? user?.email ?? '' : '' }));
+  });
   const [error, setError] = useState('');
+  const [invalid, setInvalid] = useState<string | null>(null);
 
   if (!trip && !itinerary) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
-        <TouchableOpacity onPress={() => router.replace('/(tabs)')}>
-          <Text style={{ color: colors.accent, marginTop: 12 }}>Back to Search</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EmptyState icon="alert-circle-outline" title="No trip selected" actionLabel="Back to Search" onAction={() => router.replace('/(tabs)')} />
       </View>
     );
   }
@@ -52,92 +60,110 @@ export default function PassengersScreen() {
 
   function updateForm(index: number, field: keyof Passenger, value: string) {
     setForms(prev => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
+    if (invalid === `${field}-${index}`) setInvalid(null);
+  }
+
+  function fail(field: string, message: string) {
+    setInvalid(field);
+    setError(message);
   }
 
   function handleNext() {
     setError('');
+    setInvalid(null);
     for (let i = 0; i < forms.length; i++) {
-      if (!forms[i].name.trim()) return setError(`Enter name for passenger ${i + 1}`);
-      if (!forms[i].email.trim()) return setError(`Enter email for passenger ${i + 1}`);
+      if (!forms[i].name.trim()) return fail(`name-${i}`, `Enter name for passenger ${i + 1}`);
+      if (!forms[i].email.trim()) return fail(`email-${i}`, `Enter email for passenger ${i + 1}`);
       if (!EMAIL_RE.test(forms[i].email.trim())) {
-        return setError(`Enter a valid email for passenger ${i + 1}`);
+        return fail(`email-${i}`, `Enter a valid email for passenger ${i + 1}`);
       }
     }
     setPassengers(forms.map(f => ({ name: f.name.trim(), email: f.email.trim() })));
     router.push('/checkout/review');
   }
 
+  const input = (id: string) => [
+    styles.input,
+    {
+      color: colors.text,
+      backgroundColor: colors.surfaceAlt,
+      borderColor: invalid === id ? colors.error : 'transparent',
+    },
+  ];
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <AppHeader title="Passenger Details" showBack />
-        <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={1} colors={colors} />
-        <View style={styles.content}>
-          <Text style={[styles.route, { color: colors.text }]}>
-            {routeOrigin} → {routeDestination}
-          </Text>
-
-          {forms.map((passenger, i) => (
-            <View key={i} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <AppHeader title="Passengers" subtitle={`${routeOrigin} → ${routeDestination}`} showBack />
+      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 2 : 1} colors={colors} />
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        {forms.map((passenger, i) => (
+          <Card key={i} style={{ gap: 8 }}>
+            <View style={styles.cardHead}>
+              <View style={[styles.avatar, { backgroundColor: colors.accentSoft }]}>
+                <Ionicons name="person" size={16} color={colors.accent} />
+              </View>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
-                Passenger {i + 1}
+                Passenger {i + 1}{i === 0 ? ' · lead' : ''}
               </Text>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Full name</Text>
-              <TextInput
-                testID={`name-${i}`}
-                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-                value={passenger.name}
-                onChangeText={v => updateForm(i, 'name', v)}
-                placeholder="John Doe"
-                placeholderTextColor={colors.textSecondary}
-              />
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
-              <TextInput
-                testID={`email-${i}`}
-                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-                value={passenger.email}
-                onChangeText={v => updateForm(i, 'email', v)}
-                placeholder="john@example.com"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <Text style={{ color: colors.textTertiary, fontSize: 12 }}>Adult</Text>
             </View>
-          ))}
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Full name (as on ID)</Text>
+            <TextInput
+              testID={`name-${i}`}
+              style={input(`name-${i}`)}
+              value={passenger.name}
+              onChangeText={v => updateForm(i, 'name', v)}
+              placeholder="First and last name"
+              placeholderTextColor={colors.textTertiary}
+              autoComplete={i === 0 ? 'name' : 'off'}
+              textContentType={i === 0 ? 'name' : 'none'}
+              autoCapitalize="words"
+            />
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Email for e-tickets</Text>
+            <TextInput
+              testID={`email-${i}`}
+              style={input(`email-${i}`)}
+              value={passenger.email}
+              onChangeText={v => updateForm(i, 'email', v)}
+              placeholder="name@example.com"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+          </Card>
+        ))}
 
-          {error ? (
-            <Text testID="error" style={{ color: colors.error, marginTop: 8 }}>{error}</Text>
-          ) : null}
+        {error ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.error + '14' }]}>
+            <Ionicons name="alert-circle" size={16} color={colors.error} />
+            <Text testID="error" style={{ color: colors.error, flex: 1 }}>{error}</Text>
+          </View>
+        ) : null}
 
-          <TouchableOpacity
-            testID="next-btn"
-            style={[styles.button, { backgroundColor: colors.accent }]}
-            onPress={handleNext}
-          >
-            <Text style={styles.buttonText}>Continue to Review</Text>
-          </TouchableOpacity>
+        <View style={styles.privacy}>
+          <Ionicons name="lock-closed-outline" size={14} color={colors.textTertiary} />
+          <Text style={{ color: colors.textTertiary, fontSize: 12, flex: 1 }}>
+            Details are only shared with the operators you book with.
+          </Text>
         </View>
       </ScrollView>
+      <BottomBar ctaTitle="Continue to review" ctaTestID="next-btn" onPress={handleNext} />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, gap: 12 },
-  step: { fontSize: 12, fontWeight: '600' },
-  route: { fontSize: 18, fontWeight: '700' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  label: { fontSize: 12, fontWeight: '600' },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
-  button: { borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  content: { padding: 16, gap: 12, paddingBottom: 32 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
+  label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3, marginTop: 4 },
+  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12 },
+  privacy: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
 });

@@ -3,21 +3,26 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper } from '../../src/components/Stepper';
+import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { Card } from '../../src/components/ui/Card';
+import { BottomBar } from '../../src/components/ui/BottomBar';
+import { EmptyState } from '../../src/components/ui/EmptyState';
 import { TravelModeChips } from '../../src/components/TravelModeChips';
 import {
   getCheckoutTrip,
   getCheckoutItinerary,
   setCheckoutTransfer,
+  getCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
 import type { MapTravelMode } from '../../src/utils/maps';
 
@@ -29,17 +34,16 @@ export default function TransferScreen() {
   const router = useRouter();
   const trip = getCheckoutTrip();
   const itinerary = getCheckoutItinerary();
-  const [startAddress, setStartAddress] = useState('');
-  const [endAddress, setEndAddress] = useState('');
-  const [mode, setMode] = useState<MapTravelMode>('transit');
+  // Seed from the store so backing into this step keeps what was typed.
+  const saved = getCheckoutTransfer();
+  const [startAddress, setStartAddress] = useState(saved.startAddress);
+  const [endAddress, setEndAddress] = useState(saved.endAddress);
+  const [mode, setMode] = useState<MapTravelMode>(saved.travelMode);
 
   if (!trip && !itinerary) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
-        <TouchableOpacity onPress={() => router.replace('/(tabs)')}>
-          <Text style={{ color: colors.accent, marginTop: 12 }}>Back to Search</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EmptyState icon="alert-circle-outline" title="No trip selected" actionLabel="Back to Search" onAction={() => router.replace('/(tabs)')} />
       </View>
     );
   }
@@ -60,93 +64,72 @@ export default function TransferScreen() {
 
   const inputStyle = [
     styles.input,
-    { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+    { color: colors.text, backgroundColor: colors.surfaceAlt },
   ];
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <AppHeader title="Getting There" showBack />
-        <Stepper steps={['Transfer', 'Passengers', 'Review', 'Pay']} current={0} colors={colors} />
-        <View style={styles.content}>
-          <Text style={[styles.route, { color: colors.text }]}>
-            {routeOrigin} → {routeDestination}
+      <AppHeader title="Getting there" subtitle={`${routeOrigin} → ${routeDestination}`} showBack />
+      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 1 : 0} colors={colors} />
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <View style={[styles.intro, { backgroundColor: colors.accentSoft }]}>
+          <Ionicons name="navigate-circle" size={22} color={colors.accent} />
+          <Text style={{ color: colors.text, fontSize: 14, flex: 1, lineHeight: 20 }}>
+            Add where you start and where you’re finally headed — we’ll add door-to-door
+            directions to your trip. Optional, and editable any time from My Trips.
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-            Tell us where you start and where you’re finally headed, and we’ll include
-            directions to and from the airport or station on your trip’s map route. You can
-            change all of this at any time from My Trips.
-          </Text>
+        </View>
 
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Leaving from (home, hotel, address…)
-            </Text>
+        <Card style={{ gap: 10 }}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Leaving from</Text>
+          <View style={styles.inputRow}>
+            <View style={[styles.dot, { borderColor: colors.textSecondary }]} />
             <TextInput
               testID="transfer-start"
               style={inputStyle}
               value={startAddress}
               onChangeText={setStartAddress}
-              placeholder="e.g. Savoy Hotel, London"
-              placeholderTextColor={colors.textSecondary}
+              placeholder="Home, hotel or address"
+              placeholderTextColor={colors.textTertiary}
+              textContentType="fullStreetAddress"
             />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Final destination (hotel, venue, address…)
-            </Text>
+          </View>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Final destination</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="location" size={16} color={colors.accent} style={{ width: 12 }} />
             <TextInput
               testID="transfer-end"
               style={inputStyle}
               value={endAddress}
               onChangeText={setEndAddress}
-              placeholder="e.g. Hôtel Lutetia, Paris"
-              placeholderTextColor={colors.textSecondary}
-            />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Preferred way to get there
-            </Text>
-            <TravelModeChips
-              mode={mode}
-              onChange={setMode}
-              colors={colors}
-              testIDPrefix="transfer-mode"
+              placeholder="Hotel, venue or address"
+              placeholderTextColor={colors.textTertiary}
+              textContentType="fullStreetAddress"
             />
           </View>
+          <Text style={[styles.label, { color: colors.textSecondary, marginTop: 6 }]}>Preferred way to get there</Text>
+          <TravelModeChips mode={mode} onChange={setMode} colors={colors} testIDPrefix="transfer-mode" />
+        </Card>
 
-          <TouchableOpacity
-            testID="transfer-continue"
-            style={[styles.button, { backgroundColor: colors.accent }]}
-            onPress={handleContinue}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            testID="transfer-skip"
-            style={styles.skip}
-            onPress={() => router.push('/checkout/passengers')}
-          >
-            <Text style={{ color: colors.textSecondary }}>Skip for now</Text>
-          </TouchableOpacity>
-        </View>
+        <Pressable testID="transfer-skip" style={styles.skip} onPress={() => router.push('/checkout/passengers')} accessibilityRole="button">
+          <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Skip for now</Text>
+        </Pressable>
       </ScrollView>
+      <BottomBar ctaTitle="Continue" ctaTestID="transfer-continue" onPress={handleContinue} />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, gap: 12 },
-  route: { fontSize: 18, fontWeight: '700' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 8 },
-  label: { fontSize: 12, fontWeight: '600' },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
-  button: { borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  content: { padding: 16, gap: 14, paddingBottom: 32 },
+  intro: { flexDirection: 'row', gap: 10, borderRadius: 14, padding: 14, alignItems: 'flex-start' },
+  label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2.5 },
+  input: { flex: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   skip: { alignItems: 'center', padding: 12 },
 });

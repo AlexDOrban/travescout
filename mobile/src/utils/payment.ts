@@ -23,16 +23,25 @@ const luhnValid = (digits: string): boolean => {
   return sum % 10 === 0;
 };
 
-function brandToken(digits: string): string | null {
+export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'discover';
+
+// Brand from the leading digits (works on partial input, for the card preview).
+export function cardBrand(number: string): CardBrand | null {
+  const digits = number.replace(/\D/g, '');
   // Visa
-  if (/^4/.test(digits)) return 'pm_card_visa';
+  if (/^4/.test(digits)) return 'visa';
   // Mastercard (51-55, 2221-2720)
-  if (/^5[1-5]/.test(digits) || /^2(2[2-9]|[3-6]\d|7[01]|720)/.test(digits)) return 'pm_card_mastercard';
+  if (/^5[1-5]/.test(digits) || /^2(2[2-9]|[3-6]\d|7[01]|720)/.test(digits)) return 'mastercard';
   // American Express (34, 37)
-  if (/^3[47]/.test(digits)) return 'pm_card_amex';
+  if (/^3[47]/.test(digits)) return 'amex';
   // Discover (6011, 65, 644-649)
-  if (/^6(011|5|4[4-9])/.test(digits)) return 'pm_card_discover';
+  if (/^6(011|5|4[4-9])/.test(digits)) return 'discover';
   return null;
+}
+
+function brandToken(digits: string): string | null {
+  const brand = cardBrand(digits);
+  return brand ? `pm_card_${brand}` : null;
 }
 
 // Groups the card number into blocks of 4 digits as the user types

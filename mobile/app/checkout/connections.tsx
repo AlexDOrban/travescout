@@ -11,8 +11,12 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper } from '../../src/components/Stepper';
-import { TRANSPORT_ICON } from '../../src/constants/transport';
+import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { ModeBadge } from '../../src/components/ModeBadge';
+import { BottomBar } from '../../src/components/ui/BottomBar';
+import { Ionicons } from '@expo/vector-icons';
+import { providerName, TRANSPORT_LABEL } from '../../src/constants/transport';
+import { formatTime } from '../../src/utils/format';
 import {
   getCheckoutItinerary,
   getCheckoutMainLeg,
@@ -162,8 +166,7 @@ export default function ConnectionsScreen() {
 
   const needsAny = showDeparture || showArrival;
 
-  const shortTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const shortTime = formatTime;
   const bufferLabel = (mins: number) =>
     mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60 ? `${mins % 60}m` : ''}`.trim() : `${mins} min`;
 
@@ -173,9 +176,10 @@ export default function ConnectionsScreen() {
     (skipArrival ? 0 : selectedArrival?.priceEur ?? 0);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView style={styles.container}>
       <AppHeader title="Add Connections" showBack />
-      <Stepper steps={['Route', 'Connections', 'Book']} current={1} colors={colors} />
+      <Stepper steps={checkoutSteps(true)} current={0} colors={colors} />
       <View style={styles.content}>
 
         {/* Selected main leg summary */}
@@ -184,8 +188,7 @@ export default function ConnectionsScreen() {
           style={[styles.selectedCard, { backgroundColor: colors.accent + '14', borderColor: colors.accent }]}
         >
           <Text style={[styles.selectedLabel, { color: colors.accent }]}>
-            {TRANSPORT_ICON[mainLeg.transportType] ?? '🚐'} YOUR SELECTED{' '}
-            {mainLeg.transportType === 'flight' ? 'FLIGHT' : mainLeg.transportType === 'train' ? 'TRAIN' : 'BUS'}
+            YOUR SELECTED {(TRANSPORT_LABEL[mainLeg.transportType] ?? 'trip').toUpperCase()}
           </Text>
           <View style={styles.selectedRow}>
             <View style={{ flex: 1 }}>
@@ -196,7 +199,7 @@ export default function ConnectionsScreen() {
                 {shortTime(mainLeg.departAt)} → {shortTime(mainLeg.arriveAt)}
               </Text>
             </View>
-            <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
               {format(mainLeg.priceEur)}
             </Text>
           </View>
@@ -204,7 +207,7 @@ export default function ConnectionsScreen() {
 
         {!needsAny && (
           <View testID="no-connections" style={[styles.noConnCard, { borderColor: colors.border }]}>
-            <Text style={{ fontSize: 32 }}>✅</Text>
+            <Ionicons name="checkmark-circle" size={36} color={colors.cheapest} />
             <Text style={[styles.sectionTitle, { color: colors.cheapest }]}>No connections needed</Text>
             <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
               Your route departs and arrives at your search cities
@@ -272,15 +275,13 @@ export default function ConnectionsScreen() {
                       }}
                     >
                       <View style={styles.optionRow}>
-                        <Text style={{ fontSize: 20 }}>
-                          {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                        </Text>
+                        <ModeBadge mode={leg.transportType} size={34} />
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.route, { color: colors.text }]}>
                             {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
                           </Text>
                           <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {leg.provider}
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {providerName(leg.provider)}
                           </Text>
                           <Text
                             style={{
@@ -289,10 +290,10 @@ export default function ConnectionsScreen() {
                               marginTop: 2,
                             }}
                           >
-                            {minsBuffer < 60 ? '⚠' : '✓'} {bufferLabel(minsBuffer)} before main leg
+                            {bufferLabel(minsBuffer)} before main leg{minsBuffer < 60 ? ' · tight' : ''}
                           </Text>
                         </View>
-                        <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+                        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
                           {format(leg.priceEur)}
                         </Text>
                       </View>
@@ -382,15 +383,13 @@ export default function ConnectionsScreen() {
                       }}
                     >
                       <View style={styles.optionRow}>
-                        <Text style={{ fontSize: 20 }}>
-                          {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                        </Text>
+                        <ModeBadge mode={leg.transportType} size={34} />
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.route, { color: colors.text }]}>
                             {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
                           </Text>
                           <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {leg.provider}
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {providerName(leg.provider)}
                           </Text>
                           <Text
                             style={{
@@ -399,10 +398,10 @@ export default function ConnectionsScreen() {
                               marginTop: 2,
                             }}
                           >
-                            {minsBuffer < 45 ? '⚠' : '✓'} {bufferLabel(minsBuffer)} after main leg
+                            {bufferLabel(minsBuffer)} after main leg{minsBuffer < 45 ? ' · tight' : ''}
                           </Text>
                         </View>
-                        <Text style={{ color: colors.cheapest, fontWeight: '700', fontSize: 16 }}>
+                        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
                           {format(leg.priceEur)}
                         </Text>
                       </View>
@@ -432,25 +431,26 @@ export default function ConnectionsScreen() {
           </View>
         )}
 
-        <TouchableOpacity
-          testID="continue-btn"
-          style={[styles.button, { backgroundColor: colors.accent }]}
-          onPress={handleContinue}
-        >
-          <Text style={styles.buttonText}>Continue to Booking · {format(totalEur)} total</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
+      <BottomBar
+        caption="Total for all legs"
+        amount={format(totalEur)}
+        ctaTitle="Continue"
+        ctaTestID="continue-btn"
+        onPress={handleContinue}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, gap: 12 },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   subtitle: { fontSize: 13, marginBottom: 8 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6, marginBottom: 8 },
+  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6, marginBottom: 10 },
   selectedCard: { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 8 },
   selectedLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
   selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

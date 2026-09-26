@@ -11,13 +11,7 @@ import {
 
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -56,9 +50,9 @@ beforeEach(() => {
 
 describe('ReviewScreen', () => {
   it('displays trip route and price', () => {
-    const { getByText } = render(<ReviewScreen />);
+    const { getByText, getByTestId } = render(<ReviewScreen />);
     expect(getByText('LON → PAR')).toBeTruthy();
-    expect(getByText('€42.50')).toBeTruthy();
+    expect(getByTestId('total-price').props.children).toBe('€42.50');
   });
 
   it('displays passenger info', () => {

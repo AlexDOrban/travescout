@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SearchScreen from '../../app/(tabs)/index';
 import { setSearchQuery } from '../../src/stores/searchStore';
@@ -39,31 +39,39 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-function pickCity(utils: ReturnType<typeof render>, side: 'from' | 'to', text: string, code: string) {
+function pickCity(utils: Awaited<ReturnType<typeof renderSettled>>, side: 'from' | 'to', text: string, code: string) {
   fireEvent.press(utils.getByTestId(`${side}-city`));
   fireEvent.changeText(utils.getByTestId(`${side}-picker-input`), text);
   fireEvent.press(utils.getByTestId(`${side}-picker-option-${code}`));
 }
 
+// Render and let mount-time async effects (storage reads, fetches) settle
+// inside act(), so they don't update state after the test has finished.
+async function renderSettled(ui: React.ReactElement) {
+  const utils = render(ui);
+  await act(async () => {});
+  return utils;
+}
+
 describe('SearchScreen', () => {
-  it('greets the user by name', () => {
-    const { getByText } = render(<SearchScreen />);
+  it('greets the user by name', async () => {
+    const { getByText } = await renderSettled(<SearchScreen />);
     expect(getByText('Hi Alex 👋')).toBeTruthy();
   });
 
-  it('defaults the departure date to tomorrow', () => {
-    const { getByTestId } = render(<SearchScreen />);
+  it('defaults the departure date to tomorrow', async () => {
+    const { getByTestId } = await renderSettled(<SearchScreen />);
     expect(getByTestId('depart-date-value').props.children).toBe(formatDayLabel(addDays(todayISO(), 1)));
   });
 
-  it('asks for a departure city first', () => {
-    const { getByTestId } = render(<SearchScreen />);
+  it('asks for a departure city first', async () => {
+    const { getByTestId } = await renderSettled(<SearchScreen />);
     fireEvent.press(getByTestId('search-btn'));
     expect(getByTestId('error').props.children).toBe('Choose where you’re leaving from');
   });
 
-  it('asks for a destination once the origin is set', () => {
-    const utils = render(<SearchScreen />);
+  it('asks for a destination once the origin is set', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     pickCity(utils, 'from', 'Lon', 'LON');
     // Picking the origin flows straight on to the destination picker; close it.
     fireEvent.press(utils.getByTestId('to-picker-close'));
@@ -72,7 +80,7 @@ describe('SearchScreen', () => {
   });
 
   it('flows from origin straight to destination and searches', async () => {
-    const utils = render(<SearchScreen />);
+    const utils = await renderSettled(<SearchScreen />);
     pickCity(utils, 'from', 'Lon', 'LON');
     fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Par');
     fireEvent.press(utils.getByTestId('to-picker-option-PAR'));
@@ -91,15 +99,15 @@ describe('SearchScreen', () => {
     });
   });
 
-  it('does not offer the origin city as destination', () => {
-    const utils = render(<SearchScreen />);
+  it('does not offer the origin city as destination', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     pickCity(utils, 'from', 'Lon', 'LON');
     fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Lon');
     expect(utils.queryByTestId('to-picker-option-LON')).toBeNull();
   });
 
-  it('swaps origin and destination', () => {
-    const utils = render(<SearchScreen />);
+  it('swaps origin and destination', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     pickCity(utils, 'from', 'Lon', 'LON');
     fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Par');
     fireEvent.press(utils.getByTestId('to-picker-option-PAR'));
@@ -110,16 +118,16 @@ describe('SearchScreen', () => {
     );
   });
 
-  it('picks a date from the calendar', () => {
-    const utils = render(<SearchScreen />);
+  it('picks a date from the calendar', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     const inAWeek = addDays(todayISO(), 7);
     fireEvent.press(utils.getByTestId('depart-date'));
     fireEvent.press(utils.getByTestId('calendar-week'));
     expect(utils.getByTestId('depart-date-value').props.children).toBe(formatDayLabel(inAWeek));
   });
 
-  it('disables past days in the calendar', () => {
-    const utils = render(<SearchScreen />);
+  it('disables past days in the calendar', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     fireEvent.press(utils.getByTestId('depart-date'));
     const yesterday = addDays(todayISO(), -1);
     const cell = utils.queryByTestId(`calendar-day-${yesterday}`);
@@ -128,16 +136,16 @@ describe('SearchScreen', () => {
     expect(utils.getByTestId(`calendar-day-${todayISO()}`).props.accessibilityState.disabled).toBe(false);
   });
 
-  it('increments and decrements adults within 1–9', () => {
-    const { getByTestId } = render(<SearchScreen />);
+  it('increments and decrements adults within 1–9', async () => {
+    const { getByTestId } = await renderSettled(<SearchScreen />);
     fireEvent.press(getByTestId('adults-minus'));
     expect(getByTestId('adults-count').props.children).toBe(1);
     for (let i = 0; i < 12; i++) fireEvent.press(getByTestId('adults-plus'));
     expect(getByTestId('adults-count').props.children).toBe(9);
   });
 
-  it('prefills from a popular route', () => {
-    const utils = render(<SearchScreen />);
+  it('prefills from a popular route', async () => {
+    const utils = await renderSettled(<SearchScreen />);
     fireEvent.press(utils.getByTestId('popular-LON-PAR'));
     fireEvent.press(utils.getByTestId('search-btn'));
     expect(mockSetQuery).toHaveBeenCalledWith(
@@ -151,7 +159,7 @@ describe('SearchScreen', () => {
       'recent:alex.orban@example.com',
       JSON.stringify([{ from: { name: 'Berlin', code: 'BER', country: 'DE' }, to: { name: 'Prague', code: 'PRG', country: 'CZ' }, departDate: future, adults: 2 }]),
     );
-    const utils = render(<SearchScreen />);
+    const utils = await renderSettled(<SearchScreen />);
     const card = await utils.findByTestId('recent-BER-PRG');
     fireEvent.press(card);
     fireEvent.press(utils.getByTestId('search-btn'));
@@ -163,8 +171,8 @@ describe('SearchScreen', () => {
     });
   });
 
-  it('cycles currency from the hero pill', () => {
-    const { getByTestId } = render(<SearchScreen />);
+  it('cycles currency from the hero pill', async () => {
+    const { getByTestId } = await renderSettled(<SearchScreen />);
     fireEvent.press(getByTestId('currency-pill'));
     expect(mockSetCurrency).toHaveBeenCalledWith({ code: 'USD', symbol: '$' });
   });

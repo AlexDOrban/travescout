@@ -2,8 +2,7 @@ import {
   cardToPaymentMethod,
   formatCardNumber,
   formatExpiry,
-  formatCvc,
-} from '../../src/utils/payment';
+  formatCvc, cardBrand } from '../../src/utils/payment';
 
 describe('formatCardNumber', () => {
   it('groups digits into blocks of four', () => {
@@ -79,5 +78,17 @@ describe('cardToPaymentMethod', () => {
   it('rejects an unsupported but Luhn-valid brand', () => {
     // A valid Luhn number that is not one of the supported brands.
     expect(cardToPaymentMethod('7000 0000 0000 0002').error).toBeTruthy();
+  });
+});
+
+describe('cardBrand', () => {
+  it('detects brands from partial input', () => {
+    expect(cardBrand('4')).toBe('visa');
+    expect(cardBrand('5555 55')).toBe('mastercard');
+    expect(cardBrand('2221')).toBe('mastercard');
+    expect(cardBrand('37')).toBe('amex');
+    expect(cardBrand('6011')).toBe('discover');
+    expect(cardBrand('9')).toBeNull();
+    expect(cardBrand('')).toBeNull();
   });
 });

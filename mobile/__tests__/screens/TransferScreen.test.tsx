@@ -4,18 +4,13 @@ import TransferScreen from '../../app/checkout/transfer';
 import {
   getCheckoutTrip,
   getCheckoutItinerary,
+  getCheckoutTransfer,
   setCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -43,6 +38,7 @@ beforeEach(() => {
     id: 'a:1', origin: 'LON', destination: 'PAR', priceEur: 42.5,
   });
   mockGetItinerary.mockReturnValue(null);
+  (getCheckoutTransfer as jest.Mock).mockReturnValue({ startAddress: '', endAddress: '', travelMode: 'transit' });
 });
 
 describe('TransferScreen', () => {
@@ -72,5 +68,12 @@ describe('TransferScreen', () => {
     mockGetTrip.mockReturnValue(null);
     const { getByText } = render(<TransferScreen />);
     expect(getByText('No trip selected')).toBeTruthy();
+  });
+
+  it('keeps what was entered when coming back to this step', () => {
+    (getCheckoutTransfer as jest.Mock).mockReturnValue({ startAddress: 'Savoy Hotel', endAddress: 'Lutetia', travelMode: 'walking' });
+    const { getByTestId } = render(<TransferScreen />);
+    expect(getByTestId('transfer-start').props.value).toBe('Savoy Hotel');
+    expect(getByTestId('transfer-end').props.value).toBe('Lutetia');
   });
 });

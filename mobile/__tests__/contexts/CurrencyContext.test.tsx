@@ -22,19 +22,22 @@ function Consumer() {
 }
 
 describe('CurrencyContext', () => {
-  it('defaults to EUR', () => {
+  it('defaults to EUR', async () => {
     const { getByTestId } = render(<CurrencyProvider><Consumer /></CurrencyProvider>);
+    await act(async () => {});
     expect(getByTestId('code').props.children).toBe('EUR');
     expect(getByTestId('symbol').props.children).toBe('€');
   });
 
-  it('formats EUR amount correctly', () => {
+  it('formats EUR amount correctly', async () => {
     const { getByTestId } = render(<CurrencyProvider><Consumer /></CurrencyProvider>);
+    await act(async () => {});
     expect(getByTestId('formatted').props.children).toBe('€18.00');
   });
 
-  it('exposes 3 currencies', () => {
+  it('exposes 3 currencies', async () => {
     const { getByTestId } = render(<CurrencyProvider><Consumer /></CurrencyProvider>);
+    await act(async () => {});
     expect(getByTestId('count').props.children).toBe(3);
   });
 });

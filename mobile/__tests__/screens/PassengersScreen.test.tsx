@@ -4,18 +4,16 @@ import PassengersScreen from '../../app/checkout/passengers';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
+  getPassengers,
   setPassengers,
 } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
+}));
+jest.mock('../../src/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { email: 'me@account.com' } }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -42,6 +40,7 @@ beforeEach(() => {
     id: 'a:1', origin: 'LON', destination: 'PAR', priceEur: 42.5,
   });
   mockGetAdults.mockReturnValue(1);
+  (getPassengers as jest.Mock).mockReturnValue([]);
 });
 
 describe('PassengersScreen', () => {
@@ -75,5 +74,27 @@ describe('PassengersScreen', () => {
     mockGetTrip.mockReturnValue(null);
     const { getByText } = render(<PassengersScreen />);
     expect(getByText('No trip selected')).toBeTruthy();
+  });
+
+  it('prefills the lead passenger email with the account email', () => {
+    mockGetAdults.mockReturnValue(2);
+    const { getByTestId } = render(<PassengersScreen />);
+    expect(getByTestId('email-0').props.value).toBe('me@account.com');
+    expect(getByTestId('email-1').props.value).toBe('');
+  });
+
+  it('keeps previously entered passengers when returning to this step', () => {
+    (getPassengers as jest.Mock).mockReturnValue([{ name: 'Ada Lovelace', email: 'ada@x.com' }]);
+    const { getByTestId } = render(<PassengersScreen />);
+    expect(getByTestId('name-0').props.value).toBe('Ada Lovelace');
+  });
+
+  it('rejects an invalid email', () => {
+    const { getByTestId } = render(<PassengersScreen />);
+    fireEvent.changeText(getByTestId('name-0'), 'John Doe');
+    fireEvent.changeText(getByTestId('email-0'), 'not-an-email');
+    fireEvent.press(getByTestId('next-btn'));
+    expect(getByTestId('error').props.children).toBe('Enter a valid email for passenger 1');
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });
