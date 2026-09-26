@@ -1,6 +1,6 @@
 # TraveScout — Build Status
 
-_Last updated: 2026-07-04. Read this first when resuming with fresh context._
+_Last updated: 2026-09-26. Read this first when resuming with fresh context._
 
 ## What the app is
 A multi-modal travel app: search flights + buses + trains in one place, book
@@ -8,8 +8,8 @@ single trips or stitched multi-leg **itineraries** (bus → flight → train wit
 connections), and keep every ticket/QR in one place ("My Trips"). Backend is an
 Express + Postgres API; the app is Expo React Native (SDK 54) run in Expo Go.
 
-- **Backend:** `backend/` (Express, `pg`, Stripe). Tests: `npm test` (Jest, 147 passing).
-- **Mobile:** `mobile/` (Expo Router, SDK 54). Tests: `npm test` (Jest, 186 passing); `npm run typecheck`; `npm run lint`.
+- **Backend:** `backend/` (Express, `pg`, Stripe). Tests: `npm test` (Jest, 161 passing; needs Postgres running — `brew services start postgresql@17`).
+- **Mobile:** `mobile/` (Expo Router, SDK 54). Tests: `npm test` (Jest, 278 passing); `npm run typecheck`; `npm run lint`.
 - **Branch:** `feature/multi-modal-routing`. Not yet merged to `master`.
 
 ## How to run (local)
@@ -50,7 +50,30 @@ Express + Postgres API; the app is Expo React Native (SDK 54) run in Expo Go.
 - Checkout state: `mobile/src/stores/checkoutStore.ts` (per-attempt idempotency
   key). API client + refresh logic: `mobile/src/api/client.ts`.
 
-## Done this milestone (chronological, latest first)
+## Modern redesign milestone (2026-09-26)
+Omio/Trainline-inspired redesign + bug sweep, all within Expo Go 54 (added only
+Expo-Go-bundled `expo-haptics`, `expo-linear-gradient`, `@expo/vector-icons`).
+- Design system: `src/constants/colors.ts` (navy ink / teal / grey canvas + dark),
+  `src/constants/theme.ts` (spacing, radius, type, elevation), primitives in
+  `src/components/ui/` (Button, Card, SegmentedControl, Sheet, Skeleton,
+  EmptyState, Toast, BottomBar). Theme follows the OS; System/Light/Dark in Account.
+- Search: gradient hero, city picker sheet (recent/popular, fuzzy), calendar sheet
+  (replaced typed YYYY-MM-DD), swap, per-user recent searches, popular routes.
+- Results: instant nav + skeletons, date strip with cheapest fare/day
+  (`GET /search/prices`, cached 10 min), mode tabs with cheapest per mode,
+  Best/Cheapest/Fastest/Earliest, timeline cards with +1 day, price-alert bell.
+- Alerts tab works (on-device, `src/utils/priceAlerts.ts`, re-quoted on focus).
+- My Trips: Upcoming/Past, ticket cards, QR on expand, pull-to-refresh.
+- Checkout: consistent "Step n of N" (`checkoutSteps()` in Stepper), sticky
+  BottomBar, price breakdown, live card preview; confirmation with share + QR.
+- Bugs fixed: backend accepted impossible dates (2030-02-30); currency fell back
+  to 1:1 on a bad rates payload; "1 stops"; mismatched connections stepper;
+  passenger/transfer inputs lost on back-navigation; My Trips spinner flash that
+  collapsed open tickets; dark status-bar text on hero screens; white flash on launch.
+- Visual check without simulator taps: `mobile/scripts/web-walkthrough.mjs` drives
+  the Expo web build in headless Chrome over CDP and screenshots every step.
+
+## Done previous milestone (chronological, latest first)
 - `df3f47e` smart departure-date input (auto dashes; month≤12, day≤days-in-month,
   leap-aware; single-digit padding; backspace-safe).
 - `e73c6f6` card number auto-spaces every 4 digits; smart MM/YY expiry (8→08/); CVC digits-only.
@@ -78,6 +101,8 @@ price ignored → would charge real €200, NaN → 400).
 - Provider `book()` for FlixBus/rail/Amadeus are stubs (gated off in production
   unless `MOCK_PROVIDERS=true`); wire real partner APIs when credentials exist.
 - Round trips not modelled end-to-end (return date removed from search for now).
+- Price alerts are on-device and checked when the Alerts tab opens; no push
+  notifications/background checks yet (needs expo-notifications + a server job).
 - In-memory offer store + idempotency assume single backend instance; use Redis/DB
   for multi-instance.
 - Mobile 14 moderate npm advisories are transitive via the Expo SDK 54 toolchain
