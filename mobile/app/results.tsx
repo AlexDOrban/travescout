@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, FlatList, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -18,11 +18,15 @@ import {
   getSearchQuery,
   setSearchResults,
   setSearchQuery,
+  getSelectedOutbound,
   type SearchQuery,
+  type SearchLeg,
 } from '../src/stores/searchStore';
+import { OutboundSummary } from '../src/components/OutboundSummary';
+import { returnSearchQuery, returnsAfter } from '../src/utils/roundTrip';
 import { search, searchPrices } from '../src/api/search';
 import type { RankedTrip, SearchMeta } from '../src/types/trip';
-import { addDays, formatDayLabel, todayISO } from '../src/utils/format';
+import { addDays, formatDayLabel, toISODate, todayISO } from '../src/utils/format';
 import { addAlert, findAlert, removeAlert, alertId } from '../src/utils/priceAlerts';
 import { radius } from '../src/constants/theme';
 import { haptic } from '../src/utils/haptics';
@@ -42,12 +46,14 @@ function metaMatches(meta: SearchMeta | null, q: SearchQuery | null): boolean {
   return !!meta && meta.from === q.from.code && meta.to === q.to.code && meta.departDate === q.departDate && meta.adults === q.adults;
 }
 
-// Seven days around the selected date, never before today.
-function dateWindow(selected: string): string[] {
+// Seven days around the selected date, never before today (or `min`) and
+// never after `max` (a round trip's outbound can't go past its return).
+function dateWindow(selected: string, min?: string, max?: string): string[] {
   const today = todayISO();
+  const floor = min && min > today ? min : today;
   let start = addDays(selected, -3);
-  if (start < today) start = today;
-  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  if (start < floor) start = floor;
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i)).filter(d => !max || d <= max);
 }
 
 export default function ResultsScreen() {
@@ -58,10 +64,17 @@ export default function ResultsScreen() {
   const userKey = user?.email ?? 'anon';
   const toast = useToast();
 
+  const params = useLocalSearchParams<{ leg?: string }>();
+  const phase: SearchLeg = params.leg === 'return' ? 'return' : 'outbound';
+  const outbound = phase === 'return' ? getSelectedOutbound() : null;
+  // The query this screen actually searches: the base query, or the way back.
+  const phaseQueryFor = (q: SearchQuery | null): SearchQuery | null =>
+    q && phase === 'return' ? returnSearchQuery(q, outbound) : q;
+
   const [query, setQuery] = useState<SearchQuery | null>(getSearchQuery());
-  const [results, setResults] = useState<RankedTrip[]>(getSearchResults());
-  const [meta, setMeta] = useState<SearchMeta | null>(getSearchMeta());
-  const [loading, setLoading] = useState(!metaMatches(getSearchMeta(), getSearchQuery()));
+  const [results, setResults] = useState<RankedTrip[]>(getSearchResults(phase));
+  const [meta, setMeta] = useState<SearchMeta | null>(getSearchMeta(phase));
+  const [loading, setLoading] = useState(!metaMatches(getSearchMeta(phase), phaseQueryFor(getSearchQuery())));
   const [error, setError] = useState('');
   const [prices, setPrices] = useState<Record<string, number | null | undefined>>({});
   const [watching, setWatching] = useState(false);
@@ -69,14 +82,14 @@ export default function ResultsScreen() {
   const [sort, setSort] = useState<SortMode>('smart');
   const requestId = useRef(0);
 
-  const runSearch = useCallback(async (q: SearchQuery) => {
+  async function runSearch(q: SearchQuery) {
     const id = ++requestId.current;
     setLoading(true);
     setError('');
     try {
       const data = await search({ from: q.from.code, to: q.to.code, departDate: q.departDate, adults: q.adults });
       if (id !== requestId.current) return; // a newer date was tapped meanwhile
-      setSearchResults(data.results, data.meta);
+      setSearchResults(data.results, data.meta, phase);
       setResults(data.results);
       setMeta(data.meta);
     } catch (e: any) {
@@ -84,14 +97,15 @@ export default function ResultsScreen() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, []);
+  }
 
   // First load (search screen navigates here immediately and we fetch).
   useEffect(() => {
     // Only on mount; later searches are triggered explicitly. runSearch flips
     // the loading flag synchronously by design (skeletons on first paint).
+    const pq = phaseQueryFor(query);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (query && !metaMatches(getSearchMeta(), query)) void runSearch(query);
+    if (pq && !metaMatches(getSearchMeta(phase), pq)) void runSearch(pq);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-read the store whenever this screen regains focus, so backing into an
@@ -101,20 +115,30 @@ export default function ResultsScreen() {
     useCallback(() => {
       const storedQuery = getSearchQuery();
       if (storedQuery && query && storedQuery !== query) setQuery(storedQuery);
-      if (metaMatches(getSearchMeta(), storedQuery)) {
-        setResults(getSearchResults());
-        setMeta(getSearchMeta());
+      if (metaMatches(getSearchMeta(phase), phaseQueryFor(storedQuery))) {
+        setResults(getSearchResults(phase));
+        setMeta(getSearchMeta(phase));
       }
-    }, [query]),
+    }, [query, phase]), // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const dates = useMemo(() => (query ? dateWindow(query.departDate) : []), [query]);
+  const pq = useMemo(() => phaseQueryFor(query), [query]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dates = useMemo(() => {
+    if (!pq) return [];
+    if (phase === 'return') return dateWindow(pq.departDate, outbound ? toISODate(new Date(outbound.arriveAt)) : undefined);
+    return dateWindow(pq.departDate, undefined, query?.returnDate);
+  }, [pq, phase, outbound, query?.returnDate]);
+  const visible = useMemo(() => (phase === 'return' ? returnsAfter(results, outbound) : results), [phase, results, outbound]);
+  const alertKey = useMemo(
+    () => (pq ? { from: pq.from, to: pq.to, departDate: pq.departDate, adults: pq.adults } : null),
+    [pq],
+  );
 
   // Cheapest fare per day for the strip (backend caches per day).
   useEffect(() => {
-    if (!query || dates.length === 0) return;
+    if (!pq || dates.length === 0) return;
     let cancelled = false;
-    searchPrices({ from: query.from.code, to: query.to.code, startDate: dates[0], days: dates.length, adults: query.adults })
+    searchPrices({ from: pq.from.code, to: pq.to.code, startDate: dates[0], days: dates.length, adults: pq.adults })
       .then(res => {
         if (cancelled) return;
         setPrices(prev => {
@@ -134,33 +158,34 @@ export default function ResultsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [query, dates]);
+  }, [pq, dates]);
 
   useEffect(() => {
-    if (!query) return;
+    if (!alertKey) return;
     let cancelled = false;
-    findAlert(userKey, query).then(a => {
+    findAlert(userKey, alertKey).then(a => {
       if (!cancelled) setWatching(!!a);
     });
     return () => {
       cancelled = true;
     };
-  }, [query, userKey]);
+  }, [alertKey, userKey]);
 
   function changeDate(iso: string) {
-    if (!query || iso === query.departDate) return;
-    const next = { ...query, departDate: iso };
+    if (!query || !pq || iso === pq.departDate) return;
+    const next = phase === 'return' ? { ...query, returnDate: iso } : { ...query, departDate: iso };
     setSearchQuery(next);
     setQuery(next);
-    void runSearch(next);
+    const nextPq = phaseQueryFor(next);
+    if (nextPq) void runSearch(nextPq);
   }
 
-  const cheapestOverall = results.length ? Math.min(...results.map(r => r.priceEur)) : null;
+  const cheapestOverall = visible.length ? Math.min(...visible.map(r => r.priceEur)) : null;
 
   async function toggleWatch() {
-    if (!query) return;
+    if (!alertKey) return;
     if (watching) {
-      await removeAlert(userKey, alertId(query));
+      await removeAlert(userKey, alertId(alertKey));
       setWatching(false);
       haptic.tap();
       toast.show('Price alert removed');
@@ -169,7 +194,7 @@ export default function ResultsScreen() {
         toast.show('No fares to track for this date yet');
         return;
       }
-      await addAlert(userKey, { ...query, priceEur: cheapestOverall });
+      await addAlert(userKey, { ...alertKey, priceEur: cheapestOverall });
       setWatching(true);
       haptic.success();
       toast.show('We’ll track this price in Alerts');
@@ -178,15 +203,15 @@ export default function ResultsScreen() {
 
   const cheapestByMode = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const r of results) {
+    for (const r of visible) {
       out.all = Math.min(out.all ?? Infinity, r.priceEur);
       out[r.transportType] = Math.min(out[r.transportType] ?? Infinity, r.priceEur);
     }
     return out;
-  }, [results]);
+  }, [visible]);
 
   const filtered = useMemo(() => {
-    const list = transport === 'all' ? results : results.filter(t => t.transportType === transport);
+    const list = transport === 'all' ? visible : visible.filter(t => t.transportType === transport);
     switch (sort) {
       case 'price':
         return [...list].sort((a, b) => a.priceEur - b.priceEur);
@@ -198,12 +223,13 @@ export default function ResultsScreen() {
         // Best: the backend's blended price/duration/convenience score.
         return [...list].sort((a, b) => b.score - a.score);
     }
-  }, [results, transport, sort]);
+  }, [visible, transport, sort]);
 
-  const title = query ? `${query.from.name} → ${query.to.name}` : meta ? `${meta.from} → ${meta.to}` : 'Results';
-  const adults = query?.adults ?? meta?.adults ?? 1;
-  const subtitle = query || meta
-    ? `${formatDayLabel(query?.departDate ?? meta!.departDate)} · ${adults} ${adults === 1 ? 'adult' : 'adults'}`
+  const title = pq ? `${pq.from.name} → ${pq.to.name}` : meta ? `${meta.from} → ${meta.to}` : 'Results';
+  const adults = pq?.adults ?? meta?.adults ?? 1;
+  const phaseLabel = query?.returnDate ? (phase === 'return' ? 'Return · ' : 'Outbound · ') : '';
+  const subtitle = pq || meta
+    ? `${phaseLabel}${formatDayLabel(pq?.departDate ?? meta!.departDate)} · ${adults} ${adults === 1 ? 'adult' : 'adults'}`
     : undefined;
 
   const modeSegments = (['all', 'train', 'bus', 'flight'] as TransportFilter[]).map(v => ({
@@ -219,7 +245,7 @@ export default function ResultsScreen() {
         subtitle={subtitle}
         showBack
         right={
-          query ? (
+          pq ? (
             <HeaderIconButton
               testID="watch-price"
               icon={watching ? 'notifications' : 'notifications-outline'}
@@ -231,9 +257,15 @@ export default function ResultsScreen() {
         }
       />
 
-      {query && (
+      {pq && (
         <View style={styles.stripWrap}>
-          <DateStrip dates={dates} selected={query.departDate} prices={prices} onSelect={changeDate} />
+          <DateStrip dates={dates} selected={pq.departDate} prices={prices} onSelect={changeDate} />
+        </View>
+      )}
+
+      {outbound && (
+        <View style={styles.pinned}>
+          <OutboundSummary trip={outbound} onChange={() => router.back()} />
         </View>
       )}
 
@@ -288,16 +320,22 @@ export default function ResultsScreen() {
           subtitle={error}
           actionLabel="Try again"
           actionTestID="results-retry"
-          onAction={() => query && runSearch(query)}
+          onAction={() => pq && runSearch(pq)}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
           testID="empty-text"
           icon="search-outline"
-          title={results.length === 0 ? 'No trips found' : `No ${transport === 'all' ? '' : `${transport} `}trips`}
-          subtitle={results.length === 0 ? 'Try another date from the strip above.' : 'Try another mode or clear the filter.'}
-          actionLabel={results.length > 0 ? 'Show all modes' : undefined}
-          onAction={results.length > 0 ? () => setTransport('all') : undefined}
+          title={
+            visible.length === 0
+              ? phase === 'return' && results.length > 0
+                ? 'No returns after your outbound arrives'
+                : 'No trips found'
+              : `No ${transport === 'all' ? '' : `${transport} `}trips`
+          }
+          subtitle={visible.length === 0 ? 'Try another date from the strip above.' : 'Try another mode or clear the filter.'}
+          actionLabel={visible.length > 0 ? 'Show all modes' : undefined}
+          onAction={visible.length > 0 ? () => setTransport('all') : undefined}
         />
       ) : (
         <FlatList
@@ -312,7 +350,11 @@ export default function ResultsScreen() {
             </Text>
           }
           renderItem={({ item }) => (
-            <TripCard trip={item} testID={`trip-${item.id}`} onPress={() => router.push(`/trip/${item.id}`)} />
+            <TripCard
+              trip={item}
+              testID={`trip-${item.id}`}
+              onPress={() => router.push(phase === 'return' ? `/trip/${item.id}?leg=return` : `/trip/${item.id}`)}
+            />
           )}
         />
       )}
@@ -324,6 +366,7 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   stripWrap: { paddingTop: 12 },
+  pinned: { paddingHorizontal: 16, paddingTop: 12 },
   filters: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
   sortRow: { gap: 8, paddingRight: 16 },
   sortChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },

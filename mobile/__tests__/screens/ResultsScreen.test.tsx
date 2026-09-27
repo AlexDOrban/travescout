@@ -7,9 +7,10 @@ import {
   setSearchQuery,
   clearSearchResults,
   getSearchResults,
+  setSelectedOutbound,
 } from '../../src/stores/searchStore';
 import { search, searchPrices } from '../../src/api/search';
-import { addDays, todayISO } from '../../src/utils/format';
+import { addDays, parseISODate, todayISO } from '../../src/utils/format';
 import type { RankedTrip } from '../../src/types/trip';
 
 jest.mock('../../src/api/search');
@@ -23,10 +24,12 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({ format: (n: number) => `€${n.toFixed(2)}` }),
 }));
 const mockPush = jest.fn();
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => {
   const React = jest.requireActual('react');
   return {
     useRouter: () => ({ push: mockPush, back: jest.fn() }),
+    useLocalSearchParams: () => mockParams,
     useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
     router: { canGoBack: () => false, back: jest.fn() },
   };
@@ -71,6 +74,7 @@ const meta = (departDate = DATE, over = {}) => ({
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockParams = {};
   clearSearchResults();
   await AsyncStorage.clear();
   mockPrices.mockResolvedValue({ prices: [] });
@@ -227,5 +231,85 @@ describe('ResultsScreen', () => {
     const utils = await renderSettled(<ResultsScreen />);
     expect(utils.getByTestId('trip-amadeus:1')).toBeTruthy();
     expect(utils.getByText('LON → PAR')).toBeTruthy();
+  });
+});
+
+describe('round trips', () => {
+  const RET = addDays(DATE, 1);
+  const at = (iso: string, h: number, m = 0) => {
+    const d = parseISODate(iso);
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  };
+  const OUTBOUND = trip('rail:out', { departAt: at(DATE, 8), arriveAt: at(DATE, 10, 15) });
+
+  it('labels the outbound phase and hides dates after the return date', async () => {
+    setSearchQuery({ from: LON, to: PAR, departDate: DATE, returnDate: RET, adults: 1 });
+    const { findByText, queryByTestId } = render(<ResultsScreen />);
+    expect(await findByText(/^Outbound · /)).toBeTruthy();
+    // The strip would show DATE-3 … DATE+3; days after the return date are dropped.
+    expect(queryByTestId(`date-${RET}`)).toBeTruthy();
+    expect(queryByTestId(`date-${addDays(RET, 1)}`)).toBeNull();
+  });
+
+  it('searches the way back on the return date and pins the outbound', async () => {
+    mockParams = { leg: 'return' };
+    setSearchQuery({ from: LON, to: PAR, departDate: DATE, returnDate: RET, adults: 1 });
+    setSelectedOutbound(OUTBOUND);
+    mockSearch.mockResolvedValue({
+      results: [trip('rail:back', { origin: 'PAR', destination: 'LON', departAt: at(RET, 17) })],
+      meta: meta(RET, { from: 'PAR', to: 'LON' }),
+    });
+    const { findByTestId, getByTestId } = render(<ResultsScreen />);
+    await findByTestId('trip-rail:back');
+    expect(mockSearch).toHaveBeenCalledWith({ from: 'PAR', to: 'LON', departDate: RET, adults: 1 });
+    expect(getByTestId('outbound-summary')).toBeTruthy();
+    fireEvent.press(getByTestId('trip-rail:back'));
+    expect(mockPush).toHaveBeenCalledWith('/trip/rail:back?leg=return');
+  });
+
+  it('hides returns leaving within 60 minutes of the outbound arrival', async () => {
+    mockParams = { leg: 'return' };
+    setSearchQuery({ from: LON, to: PAR, departDate: DATE, returnDate: DATE, adults: 1 });
+    setSelectedOutbound(OUTBOUND);
+    mockSearch.mockResolvedValue({
+      results: [
+        trip('rail:soon', { departAt: at(DATE, 10, 45) }),
+        trip('rail:later', { departAt: at(DATE, 11, 30) }),
+      ],
+      meta: meta(DATE, { from: 'PAR', to: 'LON' }),
+    });
+    const { findByTestId, queryByTestId } = render(<ResultsScreen />);
+    await findByTestId('trip-rail:later');
+    expect(queryByTestId('trip-rail:soon')).toBeNull();
+  });
+
+  it('re-filters cached returns when the user goes back and picks a later outbound', async () => {
+    mockParams = { leg: 'return' };
+    setSearchQuery({ from: LON, to: PAR, departDate: DATE, returnDate: DATE, adults: 1 });
+    setSelectedOutbound(OUTBOUND); // arrives 10:15
+    mockSearch.mockResolvedValue({
+      results: [trip('rail:back', { departAt: at(DATE, 13) })],
+      meta: meta(DATE, { from: 'PAR', to: 'LON' }),
+    });
+    const first = render(<ResultsScreen />);
+    await first.findByTestId('trip-rail:back');
+    first.unmount();
+
+    // Back to the outbound list, pick one landing at 14:00, open the returns again.
+    setSelectedOutbound(trip('rail:late-out', { departAt: at(DATE, 12), arriveAt: at(DATE, 14) }));
+    const second = render(<ResultsScreen />);
+    expect(await second.findByText('No returns after your outbound arrives')).toBeTruthy();
+    expect(mockSearch).toHaveBeenCalledTimes(1); // same query → cached results, filtered anew
+  });
+
+  it('searches the arrival day when an overnight outbound lands after the return date', async () => {
+    mockParams = { leg: 'return' };
+    setSearchQuery({ from: LON, to: PAR, departDate: DATE, returnDate: DATE, adults: 1 });
+    setSelectedOutbound(trip('rail:night', { departAt: at(DATE, 22), arriveAt: at(addDays(DATE, 1), 7) }));
+    render(<ResultsScreen />);
+    await waitFor(() =>
+      expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ departDate: addDays(DATE, 1) })),
+    );
   });
 });
