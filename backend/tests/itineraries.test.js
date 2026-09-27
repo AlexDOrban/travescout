@@ -91,6 +91,11 @@ describe('GET /itineraries', () => {
     expect(res.body.itineraries[0].legs.length).toBeGreaterThan(0);
     // arrive_at now surfaces on legs (was previously dropped).
     expect(res.body.itineraries[0].legs[0]).toHaveProperty('arrive_at');
+
+    const listed = res.body.itineraries[0];
+    // Rows booked without a tripType read back as one-way / outbound.
+    expect(listed.trip_type).toBe('one_way');
+    expect(listed.legs[0].direction).toBe('outbound');
   });
 
   it('returns 401 without auth', async () => {

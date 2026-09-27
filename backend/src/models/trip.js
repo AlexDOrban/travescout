@@ -7,8 +7,8 @@ async function create(data, executor = db) {
     `INSERT INTO trips
        (user_id, provider, booking_ref, origin, destination,
         depart_at, arrive_at, return_at, price_eur, currency_display, status, raw_ticket_url,
-        itinerary_id, leg_order, ticket_qr_data)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        itinerary_id, leg_order, ticket_qr_data, direction)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING *`,
     [
       data.userId,
@@ -26,6 +26,7 @@ async function create(data, executor = db) {
       data.itineraryId || null,
       data.legOrder || 0,
       data.ticketQrData || null,
+      data.direction || 'outbound',
     ]
   );
   return rows[0];
