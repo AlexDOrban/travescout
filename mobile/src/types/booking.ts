@@ -37,6 +37,7 @@ export interface BookedTrip {
   created_at: string;
   itinerary_id?: string;
   leg_order?: number;
+  direction?: 'outbound' | 'return';
   ticket_qr_data?: string;
 }
 

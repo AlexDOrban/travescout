@@ -8,6 +8,12 @@ export function computeConnections(legs: Leg[]): Connection[] {
     const depart = new Date(legs[i + 1].departAt).getTime();
     const transferMins = Math.round((depart - arrive) / (1000 * 60));
 
+    // Outbound → return is the stay at the destination, not a connection.
+    if ((legs[i].direction ?? 'outbound') !== (legs[i + 1].direction ?? 'outbound')) {
+      connections.push({ transferMins, stay: true });
+      continue;
+    }
+
     // Per-hub minimum transfer time when we know the hub; fall back to
     // a generic threshold by transport type.
     const hub = getHubByCode(legs[i].destination);

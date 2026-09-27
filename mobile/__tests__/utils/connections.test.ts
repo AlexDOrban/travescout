@@ -63,3 +63,21 @@ describe('needsArrivalConnection', () => {
     expect(needsArrivalConnection('NCE', 'NCE-APT')).toBe(false);
   });
 });
+
+describe('computeConnections — round trips', () => {
+  it('marks the gap between outbound and return as the stay, without a warning', () => {
+    const out = makeLeg({ direction: 'outbound', arriveAt: '2030-06-15T10:00:00Z' });
+    const ret = makeLeg({ direction: 'return', departAt: '2030-06-15T10:20:00Z', arriveAt: '2030-06-15T12:00:00Z' });
+    const [c] = computeConnections([out, ret]);
+    expect(c.stay).toBe(true);
+    expect(c.warning).toBeUndefined();
+  });
+
+  it('still warns on a tight connection inside one direction', () => {
+    const a = makeLeg({ direction: 'return', transportType: 'bus', arriveAt: '2030-06-20T10:00:00Z' });
+    const b = makeLeg({ direction: 'return', departAt: '2030-06-20T10:10:00Z' });
+    const [c] = computeConnections([a, b]);
+    expect(c.stay).toBeUndefined();
+    expect(c.warning).toMatch(/Tight connection/);
+  });
+});
