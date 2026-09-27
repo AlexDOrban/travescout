@@ -30,12 +30,24 @@ function requoteLegOrThrow(leg) {
   return offer;
 }
 
-async function bookItinerary({ userId, legs, passengers, paymentMethodId, origin, destination, idempotencyKey }) {
+// Uses the server-side offers, never client times: the return's first leg must
+// leave after the outbound's last leg arrives.
+function assertReturnAfterOutbound(legs, offers) {
+  const firstReturn = legs.findIndex(l => l.direction === 'return');
+  const outboundArrive = new Date(offers[firstReturn - 1].arriveAt).getTime();
+  const returnDepart = new Date(offers[firstReturn].departAt).getTime();
+  if (!(returnDepart > outboundArrive)) {
+    throw Object.assign(new Error('Return must depart after the outbound arrives'), { status: 400 });
+  }
+}
+
+async function bookItinerary({ userId, legs, passengers, paymentMethodId, origin, destination, idempotencyKey, tripType = 'one_way' }) {
   // 1. Resolve all leg providers before any money moves
   const legProviders = legs.map(leg => providers.getProvider(leg.provider));
 
   // 2. Re-quote every leg against the authoritative server-side offers
   const offers = legs.map(requoteLegOrThrow);
+  if (tripType === 'round_trip') assertReturnAfterOutbound(legs, offers);
   const totalPriceEur = offers.reduce((sum, o) => sum + o.priceEur, 0);
 
   // 3. Get user
@@ -70,7 +82,9 @@ async function bookItinerary({ userId, legs, passengers, paymentMethodId, origin
       customerId: stripeCustomerId,
       paymentMethodId,
       amountEur: totalPriceEur,
-      description: `TraveScout Itinerary: ${origin} → ${destination} (${legs.length} legs)`,
+      description: tripType === 'round_trip'
+        ? `TraveScout Round trip: ${origin} ⇄ ${destination} (${legs.length} legs)`
+        : `TraveScout Itinerary: ${origin} → ${destination} (${legs.length} legs)`,
       idempotencyKey: idempotencyKey ? `${userId}:${idempotencyKey}` : undefined,
     });
     if (intent.status !== 'requires_capture') {
@@ -119,6 +133,7 @@ async function bookItinerary({ userId, legs, passengers, paymentMethodId, origin
             arriveAt: lastOffer.arriveAt,
             totalPriceEur: succeededPriceEur,
             status,
+            tripType,
           },
           tx
         );
@@ -146,6 +161,7 @@ async function bookItinerary({ userId, legs, passengers, paymentMethodId, origin
               ticketQrData: providerResult ? `TICKET:${providerResult.bookingRef}` : null,
               itineraryId: itinerary.id,
               legOrder: i,
+              direction: leg.direction || 'outbound',
             },
             tx
           );
