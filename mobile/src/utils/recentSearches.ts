@@ -5,6 +5,8 @@ export interface RecentSearch {
   from: City;
   to: City;
   departDate: string;
+  /** Round trips only. */
+  returnDate?: string;
   adults: number;
 }
 

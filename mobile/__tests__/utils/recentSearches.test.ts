@@ -46,3 +46,9 @@ describe('recent searches', () => {
     expect(await getRecentSearches('a@x.com')).toEqual([]);
   });
 });
+
+it('keeps the return date of a round-trip search', async () => {
+  await addRecentSearch('rt@x.com', { ...s(), returnDate: '2030-05-04' });
+  const [first] = await getRecentSearches('rt@x.com');
+  expect(first.returnDate).toBe('2030-05-04');
+});

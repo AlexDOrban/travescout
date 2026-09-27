@@ -7,28 +7,38 @@ export interface SearchQuery {
   from: City;
   to: City;
   departDate: string;
+  /** Set for round trips; the return leg is searched as a one-way back. */
+  returnDate?: string;
   adults: number;
 }
 
-let _results: RankedTrip[] = [];
-let _meta: SearchMeta | null = null;
+export type SearchLeg = 'outbound' | 'return';
+
+interface LegResults {
+  results: RankedTrip[];
+  meta: SearchMeta | null;
+}
+
+const empty = (): LegResults => ({ results: [], meta: null });
+
+let _legs: Record<SearchLeg, LegResults> = { outbound: empty(), return: empty() };
 let _query: SearchQuery | null = null;
+let _selectedOutbound: RankedTrip | null = null;
 
-export function setSearchResults(results: RankedTrip[], meta: SearchMeta): void {
-  _results = results;
-  _meta = meta;
+export function setSearchResults(results: RankedTrip[], meta: SearchMeta, leg: SearchLeg = 'outbound'): void {
+  _legs = { ..._legs, [leg]: { results, meta } };
 }
 
-export function getSearchResults(): RankedTrip[] {
-  return _results;
+export function getSearchResults(leg: SearchLeg = 'outbound'): RankedTrip[] {
+  return _legs[leg].results;
 }
 
-export function getSearchMeta(): SearchMeta | null {
-  return _meta;
+export function getSearchMeta(leg: SearchLeg = 'outbound'): SearchMeta | null {
+  return _legs[leg].meta;
 }
 
-export function getResultById(id: string): RankedTrip | undefined {
-  return _results.find(t => t.id === id);
+export function getResultById(id: string, leg: SearchLeg = 'outbound'): RankedTrip | undefined {
+  return _legs[leg].results.find(t => t.id === id);
 }
 
 export function setSearchQuery(query: SearchQuery): void {
@@ -39,8 +49,16 @@ export function getSearchQuery(): SearchQuery | null {
   return _query;
 }
 
+export function setSelectedOutbound(trip: RankedTrip | null): void {
+  _selectedOutbound = trip;
+}
+
+export function getSelectedOutbound(): RankedTrip | null {
+  return _selectedOutbound;
+}
+
 export function clearSearchResults(): void {
-  _results = [];
-  _meta = null;
+  _legs = { outbound: empty(), return: empty() };
   _query = null;
+  _selectedOutbound = null;
 }
