@@ -18,11 +18,13 @@ interface Props {
   minDate?: string;
   /** How many months ahead can be browsed. */
   monthsAhead?: number;
+  /** Sheet title; defaults to "Departure date". */
+  title?: string;
 }
 
 const WEEK = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
-export function CalendarSheet({ visible, onClose, value, onSelect, testID, minDate, monthsAhead = 11 }: Props) {
+export function CalendarSheet({ visible, onClose, value, onSelect, testID, minDate, monthsAhead = 11, title = 'Departure date' }: Props) {
   const { colors } = useTheme();
   const min = minDate ?? todayISO();
   const initial = parseISODate(value || min);
@@ -62,7 +64,7 @@ export function CalendarSheet({ visible, onClose, value, onSelect, testID, minDa
   ];
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Departure date" testID={testID}>
+    <Sheet visible={visible} onClose={onClose} title={title} testID={testID}>
       <View style={styles.quickRow}>
         {quick.map(q => {
           const active = q.iso === value;

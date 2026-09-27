@@ -12,6 +12,8 @@ import { HeroStatusBar } from '../../src/components/HeroStatusBar';
 import { Card } from '../../src/components/ui/Card';
 import { CityPickerSheet } from '../../src/components/CityPickerSheet';
 import { CalendarSheet } from '../../src/components/CalendarSheet';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import { defaultReturnDate } from '../../src/utils/roundTrip';
 import { setSearchQuery } from '../../src/stores/searchStore';
 import { CITIES, type City } from '../../src/data/cities';
 import { countryFlag } from '../../src/data/cityMatch';
@@ -41,9 +43,11 @@ export default function SearchScreen() {
   const [fromCity, setFromCity] = useState<City | null>(null);
   const [toCity, setToCity] = useState<City | null>(null);
   const [departDate, setDepartDate] = useState(() => addDays(todayISO(), 1));
+  const [tripType, setTripType] = useState<'one_way' | 'return'>('one_way');
+  const [returnDate, setReturnDate] = useState(() => defaultReturnDate(addDays(todayISO(), 1)));
   const [adults, setAdults] = useState(1);
   const [error, setError] = useState('');
-  const [picker, setPicker] = useState<'from' | 'to' | 'date' | null>(null);
+  const [picker, setPicker] = useState<'from' | 'to' | 'date' | 'return' | null>(null);
   const [recent, setRecent] = useState<RecentSearch[]>([]);
   const [spin] = useState(() => new Animated.Value(0));
 
@@ -72,13 +76,21 @@ export default function SearchScreen() {
     setCurrency(currencies[(idx + 1) % currencies.length]);
   }
 
-  function fill(from: City, to: City, date?: string, pax?: number) {
+  // ret: a string restores a round trip, null restores a one-way search,
+  // undefined (popular routes) leaves the trip type alone.
+  function fill(from: City, to: City, date?: string, pax?: number, ret?: string | null) {
     haptic.tap();
     setFromCity(from);
     setToCity(to);
-    // A recent search's date may have passed; fall back to tomorrow.
-    if (date && date >= todayISO()) setDepartDate(date);
+    // A recent search's date may have passed; keep the current date then.
+    const nextDepart = date && date >= todayISO() ? date : departDate;
+    setDepartDate(nextDepart);
     if (pax) setAdults(pax);
+    if (ret === null) setTripType('one_way');
+    if (typeof ret === 'string') {
+      setTripType('return');
+      setReturnDate(ret >= nextDepart ? ret : defaultReturnDate(nextDepart));
+    }
     setError('');
   }
 
@@ -89,7 +101,10 @@ export default function SearchScreen() {
     if (fromCity.code === toCity.code) return setError('Departure and destination must differ');
     if (departDate < todayISO()) return setError('Departure date cannot be in the past');
 
-    const query = { from: fromCity, to: toCity, departDate, adults };
+    const isReturn = tripType === 'return';
+    if (isReturn && returnDate < departDate) return setError('Return date must be on or after departure');
+
+    const query = { from: fromCity, to: toCity, departDate, adults, ...(isReturn ? { returnDate } : {}) };
     void addRecentSearch(userKey, query);
     setSearchQuery(query);
     router.push('/results');
@@ -131,6 +146,20 @@ export default function SearchScreen() {
         </LinearGradient>
 
         <Card style={styles.searchCard}>
+          <View style={styles.tripType}>
+            <SegmentedControl
+              segments={[
+                { value: 'one_way', label: 'One-way' },
+                { value: 'return', label: 'Return' },
+              ]}
+              value={tripType}
+              onChange={v => {
+                setTripType(v);
+                setError('');
+              }}
+              testIDPrefix="trip-type"
+            />
+          </View>
           <View style={styles.odWrap}>
             <Pressable
               testID="from-city"
@@ -230,6 +259,27 @@ export default function SearchScreen() {
             </View>
           </View>
 
+          {tripType === 'return' && (
+            <>
+              <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+              <Pressable
+                testID="return-date"
+                onPress={() => setPicker('return')}
+                accessibilityRole="button"
+                accessibilityLabel={`Return date ${formatDayLabel(returnDate)}`}
+                style={styles.field}
+              >
+                <Ionicons name="return-down-back-outline" size={18} color={colors.textSecondary} />
+                <View>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Return</Text>
+                  <Text testID="return-date-value" style={[styles.fieldValue, { color: colors.text }]}>
+                    {formatDayLabel(returnDate)}
+                  </Text>
+                </View>
+              </Pressable>
+            </>
+          )}
+
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: colors.error + '14' }]}>
               <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -248,7 +298,7 @@ export default function SearchScreen() {
                 <Card
                   key={`${r.from.code}-${r.to.code}`}
                   testID={`recent-${r.from.code}-${r.to.code}`}
-                  onPress={() => fill(r.from, r.to, r.departDate, r.adults)}
+                  onPress={() => fill(r.from, r.to, r.departDate, r.adults, r.returnDate ?? null)}
                   style={styles.recentCard}
                   accessibilityLabel={`Search again ${r.from.name} to ${r.to.name}`}
                 >
@@ -259,7 +309,8 @@ export default function SearchScreen() {
                     </Text>
                   </View>
                   <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    {formatDayLabel(r.departDate)} · {r.adults} {r.adults === 1 ? 'adult' : 'adults'}
+                    {formatDayLabel(r.departDate)}
+                    {r.returnDate ? ` – ${formatDayLabel(r.returnDate)}` : ''} · {r.adults} {r.adults === 1 ? 'adult' : 'adults'}
                   </Text>
                 </Card>
               ))}
@@ -325,13 +376,23 @@ export default function SearchScreen() {
           }
         }}
       />
+      {/* One sheet for both dates (same iOS Modal constraint); the key
+          remounts it so the month cursor starts on the date being edited. */}
       <CalendarSheet
-        visible={picker === 'date'}
-        testID="calendar"
-        value={departDate}
+        key={picker === 'return' ? 'return' : 'depart'}
+        visible={picker === 'date' || picker === 'return'}
+        testID={picker === 'return' ? 'return-calendar' : 'calendar'}
+        title={picker === 'return' ? 'Return date' : 'Departure date'}
+        value={picker === 'return' ? returnDate : departDate}
+        minDate={picker === 'return' ? departDate : undefined}
         onClose={() => setPicker(null)}
         onSelect={iso => {
-          setDepartDate(iso);
+          if (picker === 'return') {
+            setReturnDate(iso);
+          } else {
+            setDepartDate(iso);
+            if (returnDate < iso) setReturnDate(defaultReturnDate(iso));
+          }
           setError('');
           setPicker(null);
         }}
@@ -352,6 +413,7 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },
   heroSub: { fontSize: 15, marginTop: 6, lineHeight: 21 },
   searchCard: { marginHorizontal: 16, marginTop: -52, padding: 8, paddingBottom: 14 },
+  tripType: { paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8 },
   odWrap: { position: 'relative' },
   field: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingVertical: 10, minHeight: 56 },
   fieldLabel: { fontSize: 12, fontWeight: '600' },

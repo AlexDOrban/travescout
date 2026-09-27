@@ -177,3 +177,71 @@ describe('SearchScreen', () => {
     expect(mockSetCurrency).toHaveBeenCalledWith({ code: 'USD', symbol: '$' });
   });
 });
+
+describe('round trips', () => {
+  async function londonParis() {
+    const utils = await renderSettled(<SearchScreen />);
+    pickCity(utils, 'from', 'Lon', 'LON');
+    fireEvent.changeText(utils.getByTestId('to-picker-input'), 'Par');
+    fireEvent.press(utils.getByTestId('to-picker-option-PAR'));
+    return utils;
+  }
+
+  it('hides the return date for one-way searches', async () => {
+    const utils = await renderSettled(<SearchScreen />);
+    expect(utils.queryByTestId('return-date')).toBeNull();
+  });
+
+  it('searches with a return date three days after departure by default', async () => {
+    const utils = await londonParis();
+    fireEvent.press(utils.getByTestId('trip-type-return'));
+    expect(utils.getByTestId('return-date-value').props.children).toBe(formatDayLabel(addDays(todayISO(), 4)));
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(mockSetQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ departDate: addDays(todayISO(), 1), returnDate: addDays(todayISO(), 4) }),
+    );
+  });
+
+  it('drops the return date when switched back to one-way', async () => {
+    const utils = await londonParis();
+    fireEvent.press(utils.getByTestId('trip-type-return'));
+    fireEvent.press(utils.getByTestId('trip-type-one_way'));
+    fireEvent.press(utils.getByTestId('search-btn'));
+    expect(mockSetQuery.mock.calls.at(-1)[0].returnDate).toBeUndefined();
+  });
+
+  it('moves the return date when departure moves past it', async () => {
+    const utils = await renderSettled(<SearchScreen />);
+    fireEvent.press(utils.getByTestId('trip-type-return'));
+    fireEvent.press(utils.getByTestId('depart-date'));
+    // "In a week" = today + 7, past the default return (today + 4).
+    fireEvent.press(utils.getByTestId('calendar-week'));
+    expect(utils.getByTestId('return-date-value').props.children).toBe(formatDayLabel(addDays(todayISO(), 10)));
+  });
+
+  it('titles the return picker and never offers days before departure', async () => {
+    const utils = await renderSettled(<SearchScreen />);
+    fireEvent.press(utils.getByTestId('trip-type-return'));
+    fireEvent.press(utils.getByTestId('return-date'));
+    expect(utils.getByText('Return date')).toBeTruthy();
+    // departure defaults to tomorrow; today must not be selectable for the return
+    const today = utils.queryByTestId(`return-calendar-day-${todayISO()}`);
+    expect(today === null || today.props.accessibilityState?.disabled).toBeTruthy();
+  });
+
+  it('restores a recent round trip without a return before departure', async () => {
+    const depart = addDays(todayISO(), 5);
+    await AsyncStorage.setItem('recent:alex.orban@example.com', JSON.stringify([
+      {
+        from: { name: 'London', code: 'LON', country: 'GB' },
+        to: { name: 'Paris', code: 'PAR', country: 'FR' },
+        departDate: depart,
+        returnDate: addDays(todayISO(), 2), // before its departure
+        adults: 1,
+      },
+    ]));
+    const utils = await renderSettled(<SearchScreen />);
+    fireEvent.press(await utils.findByTestId('recent-LON-PAR'));
+    expect(utils.getByTestId('return-date-value').props.children).toBe(formatDayLabel(addDays(depart, 3)));
+  });
+});
