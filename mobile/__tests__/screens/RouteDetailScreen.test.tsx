@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import TripDetailScreen from '../../app/trip/[id]';
-import { getResultById, getSearchMeta } from '../../src/stores/searchStore';
-import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
+import { getResultById, getSearchMeta, getSearchQuery, getSelectedOutbound, setSelectedOutbound } from '../../src/stores/searchStore';
+import { setCheckoutTrip, setCheckoutItinerary, setCheckoutRoundTrip } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/stores/checkoutStore');
@@ -18,8 +18,9 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
   }),
 }));
 const mockPush = jest.fn();
+let mockParams: Record<string, string> = { id: 'amadeus:1' };
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: 'amadeus:1' }),
+  useLocalSearchParams: () => mockParams,
   useRouter: () => ({ back: jest.fn(), push: mockPush }),
   router: { canGoBack: () => false, back: jest.fn() },
 }));
@@ -47,6 +48,9 @@ const MOCK_TRIP = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockParams = { id: 'amadeus:1' };
+  (getSearchQuery as jest.Mock).mockReturnValue(null);
+  (getSelectedOutbound as jest.Mock).mockReturnValue(null);
   mockGetSearchMeta.mockReturnValue({ adults: 1 });
 });
 
@@ -125,5 +129,53 @@ describe('TripDetailScreen', () => {
       1,
     );
     expect(mockPush).toHaveBeenCalledWith('/checkout/connections');
+  });
+});
+
+describe('round trips', () => {
+  const LON = { name: 'London', code: 'LON', country: 'UK' };
+  const PAR = { name: 'Paris', code: 'PAR', country: 'FR' };
+  const RT_QUERY = { from: LON, to: PAR, departDate: '2030-04-15', returnDate: '2030-04-18', adults: 1 };
+  const RETURN_TRIP = { ...MOCK_TRIP, id: 'rail:ret', provider: 'rail', transportType: 'train', origin: 'PAR', destination: 'LON', priceEur: 30 };
+
+  it('outbound: offers "Choose return" instead of booking', () => {
+    (getSearchQuery as jest.Mock).mockReturnValue(RT_QUERY);
+    mockGetById.mockReturnValue(MOCK_TRIP);
+    const { getByTestId, queryByTestId } = render(<TripDetailScreen />);
+    expect(queryByTestId('book-btn')).toBeNull();
+    expect(queryByTestId('add-connections-btn')).toBeNull();
+    fireEvent.press(getByTestId('choose-return-btn'));
+    expect(setSelectedOutbound).toHaveBeenCalledWith(MOCK_TRIP);
+    expect(mockPush).toHaveBeenCalledWith('/results?leg=return');
+  });
+
+  it('return: shows the round-trip total and books both directions', () => {
+    mockParams = { id: 'rail:ret', leg: 'return' };
+    (getSearchQuery as jest.Mock).mockReturnValue(RT_QUERY);
+    (getSelectedOutbound as jest.Mock).mockReturnValue(MOCK_TRIP);
+    mockGetById.mockReturnValue(RETURN_TRIP);
+    const { getByTestId, getByText } = render(<TripDetailScreen />);
+    expect(mockGetById).toHaveBeenCalledWith('rail:ret', 'return');
+    expect(getByTestId('outbound-summary')).toBeTruthy();
+    expect(getByText('€72.50')).toBeTruthy(); // 42.50 + 30
+    fireEvent.press(getByTestId('book-round-trip-btn'));
+    expect(setCheckoutRoundTrip).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'amadeus:1', direction: 'outbound' }),
+      expect.objectContaining({ id: 'rail:ret', direction: 'return' }),
+      1,
+      false,
+    );
+    expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
+  });
+
+  it('return: Add Connections starts the outbound connections step', () => {
+    mockParams = { id: 'rail:ret', leg: 'return' };
+    (getSearchQuery as jest.Mock).mockReturnValue(RT_QUERY);
+    (getSelectedOutbound as jest.Mock).mockReturnValue(MOCK_TRIP);
+    mockGetById.mockReturnValue(RETURN_TRIP);
+    const { getByTestId } = render(<TripDetailScreen />);
+    fireEvent.press(getByTestId('add-connections-btn'));
+    expect(setCheckoutRoundTrip).toHaveBeenCalledWith(expect.anything(), expect.anything(), 1, true);
+    expect(mockPush).toHaveBeenCalledWith('/checkout/connections?direction=outbound');
   });
 });

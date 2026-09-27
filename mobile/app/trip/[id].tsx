@@ -10,9 +10,17 @@ import { BottomBar } from '../../src/components/ui/BottomBar';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
-import { getResultById, getSearchMeta, getSearchQuery } from '../../src/stores/searchStore';
-import { setCheckoutTrip, setCheckoutItinerary } from '../../src/stores/checkoutStore';
-import type { Leg } from '../../src/types/itinerary';
+import {
+  getResultById,
+  getSearchMeta,
+  getSearchQuery,
+  getSelectedOutbound,
+  setSelectedOutbound,
+  type SearchLeg,
+} from '../../src/stores/searchStore';
+import { setCheckoutTrip, setCheckoutItinerary, setCheckoutRoundTrip } from '../../src/stores/checkoutStore';
+import { OutboundSummary } from '../../src/components/OutboundSummary';
+import { toLeg } from '../../src/utils/itinerary';
 import { providerName, TRANSPORT_LABEL } from '../../src/constants/transport';
 import { ColorPalette } from '../../src/constants/colors';
 import { dayOffset, formatDayLabel, formatDuration, formatStops, formatTime, toISODate } from '../../src/utils/format';
@@ -20,15 +28,18 @@ import { dayOffset, formatDayLabel, formatDuration, formatStops, formatTime, toI
 const TAG_LABEL: Record<string, string> = { CHEAPEST: 'Cheapest', FASTEST: 'Fastest', BALANCED: 'Best value' };
 
 export default function TripDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, leg } = useLocalSearchParams<{ id: string; leg?: string }>();
+  const phase: SearchLeg = leg === 'return' ? 'return' : 'outbound';
   const { colors } = useTheme();
   const { format } = useCurrency();
   const router = useRouter();
-  const trip = getResultById(id ?? '');
+  const trip = getResultById(id ?? '', phase);
   const meta = getSearchMeta();
   const query = getSearchQuery();
+  const roundTrip = !!query?.returnDate;
+  const outbound = phase === 'return' ? getSelectedOutbound() : null;
 
-  if (!trip) {
+  if (!trip || (phase === 'return' && !outbound)) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <AppHeader title="Trip details" showBack />
@@ -47,13 +58,19 @@ export default function TripDetailScreen() {
   const adults = meta?.adults ?? 1;
   const plusDays = dayOffset(trip.departAt, trip.arriveAt);
   // Prefer city names from the search; flights carry airport codes.
-  const originName = query && query.from.code === trip.origin ? query.from.name : trip.origin;
-  const destName = query && query.to.code === trip.destination ? query.to.name : trip.destination;
+  const cityName = (code: string) => [query?.from, query?.to].find(c => c?.code === code)?.name ?? code;
+  const originName = cityName(trip.origin);
+  const destName = cityName(trip.destination);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title={`${trip.origin} → ${trip.destination}`} subtitle={formatDayLabel(toISODate(new Date(trip.departAt)))} showBack />
       <ScrollView contentContainerStyle={styles.body}>
+        {outbound && (
+          <View style={{ marginBottom: 12 }}>
+            <OutboundSummary trip={outbound} />
+          </View>
+        )}
         <Card>
           <View style={styles.topRow}>
             <ModeBadge mode={trip.transportType} size={40} />
@@ -116,39 +133,69 @@ export default function TripDetailScreen() {
           />
         </View>
 
-        <Pressable
-          testID="add-connections-btn"
-          onPress={() => {
-            const leg: Leg = { ...trip, originName: trip.origin, destinationName: trip.destination };
-            setCheckoutItinerary(leg, adults);
-            router.push('/checkout/connections');
-          }}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.connect, { backgroundColor: colors.card, borderColor: colors.border }, pressed && { opacity: 0.7 }]}
-        >
-          <View style={[styles.connectIcon, { backgroundColor: colors.accentSoft }]}>
-            <Ionicons name="git-merge-outline" size={18} color={colors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>Add Connections</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 1 }}>
-              Book a bus or train to and from the station or airport too
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-        </Pressable>
+        {!(roundTrip && phase === 'outbound') && (
+          <Pressable
+            testID="add-connections-btn"
+            onPress={() => {
+              if (outbound) {
+                setCheckoutRoundTrip(toLeg(outbound, 'outbound'), toLeg(trip, 'return'), adults, true);
+                router.push('/checkout/connections?direction=outbound');
+                return;
+              }
+              setCheckoutItinerary(toLeg(trip), adults);
+              router.push('/checkout/connections');
+            }}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.connect, { backgroundColor: colors.card, borderColor: colors.border }, pressed && { opacity: 0.7 }]}
+          >
+            <View style={[styles.connectIcon, { backgroundColor: colors.accentSoft }]}>
+              <Ionicons name="git-merge-outline" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>Add Connections</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 1 }}>
+                Book a bus or train to and from the station or airport too
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </Pressable>
+        )}
       </ScrollView>
 
-      <BottomBar
-        caption={adults === 1 ? 'Total' : `Total · ${adults} adults`}
-        amount={format(trip.priceEur)}
-        ctaTitle="Book Now"
-        ctaTestID="book-btn"
-        onPress={() => {
-          setCheckoutTrip(trip, adults);
-          router.push('/checkout/transfer');
-        }}
-      />
+      {roundTrip && phase === 'outbound' ? (
+        <BottomBar
+          caption="Outbound"
+          amount={format(trip.priceEur)}
+          ctaTitle="Choose return"
+          ctaTestID="choose-return-btn"
+          onPress={() => {
+            setSelectedOutbound(trip);
+            router.push('/results?leg=return');
+          }}
+        />
+      ) : outbound ? (
+        <BottomBar
+          caption={adults === 1 ? 'Total · round trip' : `Total · round trip · ${adults} adults`}
+          amount={format(outbound.priceEur + trip.priceEur)}
+          ctaTitle="Book round trip"
+          ctaTestID="book-round-trip-btn"
+          onPress={() => {
+            setCheckoutRoundTrip(toLeg(outbound, 'outbound'), toLeg(trip, 'return'), adults, false);
+            router.push('/checkout/transfer');
+          }}
+        />
+      ) : (
+        <BottomBar
+          caption={adults === 1 ? 'Total' : `Total · ${adults} adults`}
+          amount={format(trip.priceEur)}
+          ctaTitle="Book Now"
+          ctaTestID="book-btn"
+          onPress={() => {
+            setCheckoutTrip(trip, adults);
+            router.push('/checkout/transfer');
+          }}
+        />
+      )}
     </View>
   );
 }
