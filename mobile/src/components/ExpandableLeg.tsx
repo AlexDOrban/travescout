@@ -64,7 +64,7 @@ export function ExpandableLeg({ leg, colors, format }: Props) {
           <Text
             style={[styles.status, { color: confirmed ? colors.cheapest : colors.warning }]}
           >
-            {leg.status}
+            {leg.status === 'failed' ? 'Not booked · not charged' : leg.status}
           </Text>
           <View style={styles.showRow}>
             <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>

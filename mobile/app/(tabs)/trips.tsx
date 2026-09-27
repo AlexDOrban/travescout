@@ -15,8 +15,9 @@ import { PROVIDER_TRANSPORT } from '../../src/constants/transport';
 import { getTrips } from '../../src/api/booking';
 import { getItineraries } from '../../src/api/itinerary';
 import type { BookedTrip } from '../../src/types/booking';
-import type { BookedItinerary } from '../../src/types/itinerary';
-import { formatDateTime } from '../../src/utils/format';
+import type { BookedItinerary, Direction } from '../../src/types/itinerary';
+import { formatDateTime, formatDayLabel, toISODate } from '../../src/utils/format';
+import { legsByDirection } from '../../src/utils/itinerary';
 import { radius } from '../../src/constants/theme';
 
 type Booking =
@@ -105,6 +106,11 @@ export default function MyTripsScreen() {
     const status = item.data.status;
     const price = parseFloat(iti ? iti.total_price_eur : (item.data as BookedTrip).price_eur);
     const ok = status === 'confirmed';
+    const roundTrip = iti?.trip_type === 'round_trip';
+    const groups = legsByDirection(legs);
+    const firstReturn = groups.return[0];
+    const mapLegs = (ls: BookedTrip[]) =>
+      ls.map(l => ({ origin: l.origin, destination: l.destination, transportType: PROVIDER_TRANSPORT[l.provider] }));
 
     return (
       <Card testID={iti ? 'itinerary-card' : 'trip-card'} style={styles.card}>
@@ -120,11 +126,13 @@ export default function MyTripsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.when, { color: colors.textSecondary }]}>{formatDateTime(item.departAt)}</Text>
             <Text style={[styles.route, { color: colors.text }]}>
-              {origin} → {destination}
+              {origin} {roundTrip ? '⇄' : '→'} {destination}
             </Text>
             {iti ? (
               <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                {iti.booking_ref} · {legs.length} {legs.length === 1 ? 'leg' : 'legs'}
+                {roundTrip && firstReturn
+                  ? `${iti.booking_ref} · Round trip · ${formatDayLabel(toISODate(new Date(iti.depart_at)))} – ${formatDayLabel(toISODate(new Date(firstReturn.depart_at)))}`
+                  : `${iti.booking_ref} · ${legs.length} ${legs.length === 1 ? 'leg' : 'legs'}`}
               </Text>
             ) : null}
           </View>
@@ -145,22 +153,42 @@ export default function MyTripsScreen() {
           <View style={[styles.notch, styles.notchRight, { backgroundColor: colors.background }]} />
         </View>
 
-        {legs.map((leg, idx) => (
-          <ExpandableLeg key={`${leg.id}-${idx}`} leg={leg} colors={colors} format={format} />
-        ))}
-
-        {tab === 'upcoming' && (
-          <View style={{ marginTop: 12 }}>
-            <RouteMapMenu
-              legs={
-                legs.length
-                  ? legs.map(l => ({ origin: l.origin, destination: l.destination, transportType: PROVIDER_TRANSPORT[l.provider] }))
-                  : [{ origin, destination }]
-              }
-              storageKey={item.data.booking_ref}
-              colors={colors}
-            />
-          </View>
+        {roundTrip ? (
+          (['outbound', 'return'] as Direction[]).map(dir => (
+            <View key={dir} testID={`trips-section-${dir}`}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                {dir === 'outbound' ? 'OUTBOUND' : 'RETURN'}
+              </Text>
+              {groups[dir].map((leg, idx) => (
+                <ExpandableLeg key={`${leg.id}-${idx}`} leg={leg} colors={colors} format={format} />
+              ))}
+              {tab === 'upcoming' && groups[dir].length > 0 && (
+                <View style={{ marginTop: 8 }}>
+                  <RouteMapMenu
+                    legs={mapLegs(groups[dir])}
+                    storageKey={item.data.booking_ref}
+                    reversed={dir === 'return'}
+                    colors={colors}
+                  />
+                </View>
+              )}
+            </View>
+          ))
+        ) : (
+          <>
+            {legs.map((leg, idx) => (
+              <ExpandableLeg key={`${leg.id}-${idx}`} leg={leg} colors={colors} format={format} />
+            ))}
+            {tab === 'upcoming' && (
+              <View style={{ marginTop: 12 }}>
+                <RouteMapMenu
+                  legs={legs.length ? mapLegs(legs) : [{ origin, destination }]}
+                  storageKey={item.data.booking_ref}
+                  colors={colors}
+                />
+              </View>
+            )}
+          </>
         )}
       </Card>
     );
@@ -232,6 +260,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 16, paddingTop: 8, paddingBottom: 40 },
   card: { marginBottom: 14 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 10, marginBottom: 4 },
   nextBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 },
   cardHeader: { flexDirection: 'row', gap: 12 },
   when: { fontSize: 13, fontWeight: '600' },

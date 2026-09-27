@@ -155,4 +155,29 @@ describe('MyTripsScreen', () => {
     fireEvent.press(utils.getByTestId('expandable-leg'));
     expect(utils.getByTestId('qr-code')).toBeTruthy();
   });
+
+  it('renders a round trip with outbound and return sections', async () => {
+    const future = (days: number, h = 8) => new Date(Date.now() + days * 86_400_000 + h * 3_600_000).toISOString();
+    const leg = (id: string, order: number, direction: 'outbound' | 'return', status = 'confirmed') =>
+      trip({
+        id, provider: 'rail', booking_ref: status === 'confirmed' ? `R-${id}` : (null as any),
+        origin: direction === 'outbound' ? 'LON' : 'PAR', destination: direction === 'outbound' ? 'PAR' : 'LON',
+        depart_at: future(direction === 'outbound' ? 5 : 8), arrive_at: future(direction === 'outbound' ? 5 : 8, 11),
+        status, leg_order: order, direction,
+      });
+    mockGetTrips.mockResolvedValue({ trips: [] });
+    mockGetItineraries.mockResolvedValue({
+      itineraries: [{
+        id: 'rt', booking_ref: 'TS-RT', origin: 'LON', destination: 'PAR', depart_at: future(5), arrive_at: future(8, 11),
+        total_price_eur: '40.00', status: 'partially_failed', trip_type: 'round_trip',
+        legs: [leg('o', 0, 'outbound'), leg('r', 1, 'return', 'failed')],
+      }],
+    });
+
+    const utils = await renderSettled(<MyTripsScreen />);
+    expect(await utils.findByText('LON ⇄ PAR')).toBeTruthy();
+    expect(utils.getByTestId('trips-section-outbound')).toBeTruthy();
+    expect(utils.getByTestId('trips-section-return')).toBeTruthy();
+    expect(utils.getByText('Not booked · not charged')).toBeTruthy();
+  });
 });
