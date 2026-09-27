@@ -7,6 +7,7 @@ import {
   getPassengers,
   getCheckoutTransfer,
   setCheckoutTransfer,
+  getCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/checkoutStore');
@@ -46,6 +47,7 @@ beforeEach(() => {
   (getCheckoutTransfer as jest.Mock).mockReturnValue({
     startAddress: '', endAddress: '', travelMode: 'transit',
   });
+  (getCheckoutItinerary as jest.Mock).mockReturnValue(null);
 });
 
 describe('ReviewScreen', () => {
@@ -95,5 +97,27 @@ describe('ReviewScreen', () => {
     expect(setCheckoutTransfer).toHaveBeenCalledWith({
       startAddress: 'The Ritz, London', endAddress: '', travelMode: 'transit',
     });
+  });
+});
+
+describe('round trips', () => {
+  const L = (id: string, origin: string, destination: string, direction: 'outbound' | 'return', departAt: string) => ({
+    id, provider: 'rail', transportType: 'train', origin, destination, originName: origin, destinationName: destination,
+    departAt, arriveAt: departAt, durationMins: 120, priceEur: 40, stops: 0, deepLink: '', direction,
+  });
+
+  it('groups legs into Outbound and Return sections without a transfer row between them', () => {
+    mockGetTrip.mockReturnValue(null);
+    (getCheckoutItinerary as jest.Mock).mockReturnValue({
+      legs: [L('o', 'LON', 'PAR', 'outbound', '2030-06-15T08:00:00Z'), L('r', 'PAR', 'LON', 'return', '2030-06-18T17:00:00Z')],
+      connections: [{ transferMins: 4860, stay: true }],
+      totalPriceEur: 80, adults: 1, tripType: 'round_trip',
+    });
+    const { getByTestId, queryByTestId, getByText } = render(<ReviewScreen />);
+    expect(getByTestId('section-outbound')).toBeTruthy();
+    expect(getByTestId('section-return')).toBeTruthy();
+    expect(queryByTestId('transfer-0')).toBeNull();
+    expect(getByText('ROUND TRIP · 2 LEGS')).toBeTruthy();
+    expect(getByTestId('map-dir-return')).toBeTruthy();
   });
 });

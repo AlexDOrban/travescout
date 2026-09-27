@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { ModeBadge } from '../../src/components/ModeBadge';
 import { Card } from '../../src/components/ui/Card';
 import { BottomBar } from '../../src/components/ui/BottomBar';
 import { EmptyState } from '../../src/components/ui/EmptyState';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import type { Direction } from '../../src/types/itinerary';
 import { providerName } from '../../src/constants/transport';
 import { formatDuration, formatStops, formatTime, formatDayLabel, toISODate } from '../../src/utils/format';
 import {
@@ -34,6 +36,7 @@ export default function ReviewScreen() {
   const trip = getCheckoutTrip();
   const adults = getCheckoutAdults();
   const passengers = getPassengers();
+  const [mapDir, setMapDir] = useState<Direction>('outbound');
 
   if (!itinerary && !trip) {
     return (
@@ -48,16 +51,33 @@ export default function ReviewScreen() {
   const totalEur = itinerary ? itinerary.totalPriceEur : trip!.priceEur;
   const operators = [...new Set(legs.map(l => providerName(l.provider)))];
   const first = legs[0];
+  const roundTrip = itinerary?.tripType === 'round_trip';
+  const dirOf = (l: ReviewLeg) => (l as { direction?: Direction }).direction ?? 'outbound';
+  const firstReturn = legs.find(l => dirOf(l) === 'return');
+  const mapLegs = roundTrip ? legs.filter(l => dirOf(l) === mapDir) : legs;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Review booking" subtitle={formatDayLabel(toISODate(new Date(first.departAt)))} showBack />
+      <AppHeader
+        title="Review booking"
+        subtitle={
+          roundTrip && firstReturn
+            ? `${formatDayLabel(toISODate(new Date(first.departAt)))} – ${formatDayLabel(toISODate(new Date(firstReturn.departAt)))}`
+            : formatDayLabel(toISODate(new Date(first.departAt)))
+        }
+        showBack
+      />
       <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Review')} colors={colors} />
       <ScrollView contentContainerStyle={styles.content}>
         <Card>
           <Text testID={itinerary ? 'itinerary-header' : undefined} style={[styles.overline, { color: colors.textSecondary }]}>
-            {itinerary ? `YOUR ROUTE · ${legs.length} LEGS` : 'YOUR TRIP'}
+            {roundTrip ? `ROUND TRIP · ${legs.length} LEGS` : itinerary ? `YOUR ROUTE · ${legs.length} LEGS` : 'YOUR TRIP'}
           </Text>
+          {roundTrip && (
+            <Text testID="section-outbound" style={[styles.overline, styles.section, { color: colors.accent }]}>
+              OUTBOUND · {formatDayLabel(toISODate(new Date(first.departAt)))}
+            </Text>
+          )}
 
           {legs.map((leg, i) => (
             <React.Fragment key={i}>
@@ -79,7 +99,11 @@ export default function ReviewScreen() {
                 ) : null}
               </View>
 
-              {itinerary && i < itinerary.connections.length && (
+              {itinerary && i < itinerary.connections.length && (itinerary.connections[i].stay ? (
+                <Text testID="section-return" style={[styles.overline, styles.section, { color: colors.accent }]}>
+                  RETURN · {formatDayLabel(toISODate(new Date(legs[i + 1].departAt)))}
+                </Text>
+              ) : (
                 <View testID={`transfer-${i}`} style={styles.transferRow}>
                   <Ionicons
                     name={itinerary.connections[i].warning ? 'warning-outline' : 'swap-horizontal'}
@@ -91,7 +115,7 @@ export default function ReviewScreen() {
                     {itinerary.connections[i].warning ? ` · ${itinerary.connections[i].warning}` : ''}
                   </Text>
                 </View>
-              )}
+              ))}
             </React.Fragment>
           ))}
 
@@ -102,10 +126,23 @@ export default function ReviewScreen() {
           )}
         </Card>
 
+        {roundTrip && (
+          <SegmentedControl
+            segments={[
+              { value: 'outbound', label: 'Outbound route' },
+              { value: 'return', label: 'Return route' },
+            ]}
+            value={mapDir}
+            onChange={setMapDir}
+            testIDPrefix="map-dir"
+          />
+        )}
         <RouteMapMenu
-          legs={legs.map(l => ({ origin: l.origin, destination: l.destination, transportType: l.transportType }))}
+          key={mapDir}
+          legs={mapLegs.map(l => ({ origin: l.origin, destination: l.destination, transportType: l.transportType }))}
           initialPrefs={getCheckoutTransfer()}
           onChange={setCheckoutTransfer}
+          reversed={roundTrip && mapDir === 'return'}
           colors={colors}
         />
 
@@ -132,7 +169,7 @@ export default function ReviewScreen() {
           {legs.map((leg, i) => (
             <View key={i} style={styles.lineRow}>
               <Text style={{ color: colors.textSecondary }}>
-                {providerName(leg.provider)} · {leg.origin} → {leg.destination}
+                {dirOf(leg) === 'return' && roundTrip ? 'Return · ' : ''}{providerName(leg.provider)} · {leg.origin} → {leg.destination}
               </Text>
               <Text style={{ color: colors.text, fontVariant: ['tabular-nums'] }}>{format(leg.priceEur)}</Text>
             </View>
@@ -176,6 +213,7 @@ const styles = StyleSheet.create({
   legRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   legRoute: { fontSize: 15, fontWeight: '700' },
   legPrice: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  section: { marginTop: 10, marginBottom: 2 },
   transferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 46, paddingBottom: 4 },
   partyPrice: { fontSize: 13, marginTop: 4 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },

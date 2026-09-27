@@ -101,4 +101,21 @@ describe('RouteMapMenu', () => {
       }),
     );
   });
+
+  it('in reverse, shows the stay as the start and reports outbound-oriented prefs', () => {
+    const onChange = jest.fn();
+    const ui = render(
+      <RouteMapMenu
+        legs={[{ origin: 'PAR', destination: 'LON', transportType: 'train' }]}
+        initialPrefs={{ startAddress: 'Home', endAddress: 'Hotel', travelMode: 'transit' }}
+        onChange={onChange}
+        reversed
+        colors={DARK}
+      />,
+    );
+    openMenu(ui);
+    expect(ui.getByTestId('route-start-address').props.value).toBe('Hotel');
+    fireEvent.changeText(ui.getByTestId('route-start-address'), 'Hotel Lutetia');
+    expect(onChange).toHaveBeenLastCalledWith({ startAddress: 'Home', endAddress: 'Hotel Lutetia', travelMode: 'transit' });
+  });
 });

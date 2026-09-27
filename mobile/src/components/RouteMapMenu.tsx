@@ -19,6 +19,7 @@ import {
   type MapTravelMode,
 } from '../utils/maps';
 import { getTransferPrefs, saveTransferPrefs, type TransferPrefs } from '../utils/transferPrefs';
+import { reversePrefs } from '../utils/roundTrip';
 import { TravelModeChips } from './TravelModeChips';
 
 interface Props {
@@ -34,6 +35,8 @@ interface Props {
   initialPrefs?: TransferPrefs;
   /** Reports every edit — lets checkout screens keep their store in sync. */
   onChange?: (prefs: TransferPrefs) => void;
+  /** Return direction: edit/show the addresses swapped; stored prefs stay home → stay. */
+  reversed?: boolean;
   testID?: string;
 }
 
@@ -53,25 +56,28 @@ function segmentTitle(seg: MapSegment): string {
 // replaced by directions to the departure airport and from the arrival one.
 // The user can type where they actually leave from and their final
 // destination (e.g. a hotel), and pick the travel mode for the links.
-export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange, testID }: Props) {
+export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange, reversed = false, testID }: Props) {
+  const flip = (p: TransferPrefs): TransferPrefs => (reversed ? reversePrefs(p) : p);
+  const seed = initialPrefs ? flip(initialPrefs) : undefined;
   const [open, setOpen] = useState(false);
-  const [startAddress, setStartAddress] = useState(initialPrefs?.startAddress ?? '');
-  const [endAddress, setEndAddress] = useState(initialPrefs?.endAddress ?? '');
-  const [mode, setMode] = useState<MapTravelMode>(initialPrefs?.travelMode ?? 'transit');
+  const [startAddress, setStartAddress] = useState(seed?.startAddress ?? '');
+  const [endAddress, setEndAddress] = useState(seed?.endAddress ?? '');
+  const [mode, setMode] = useState<MapTravelMode>(seed?.travelMode ?? 'transit');
 
   useEffect(() => {
     if (!storageKey) return;
     let cancelled = false;
     getTransferPrefs(storageKey).then(prefs => {
       if (!prefs || cancelled) return;
-      setStartAddress(prefs.startAddress);
-      setEndAddress(prefs.endAddress);
-      setMode(prefs.travelMode);
+      const shown = reversed ? reversePrefs(prefs) : prefs;
+      setStartAddress(shown.startAddress);
+      setEndAddress(shown.endAddress);
+      setMode(shown.travelMode);
     });
     return () => {
       cancelled = true;
     };
-  }, [storageKey]);
+  }, [storageKey, reversed]);
 
   function update(next: { startAddress?: string; endAddress?: string; mode?: MapTravelMode }) {
     const merged = {
@@ -82,8 +88,9 @@ export function RouteMapMenu({ legs, colors, storageKey, initialPrefs, onChange,
     if (next.startAddress !== undefined) setStartAddress(next.startAddress);
     if (next.endAddress !== undefined) setEndAddress(next.endAddress);
     if (next.mode !== undefined) setMode(next.mode);
-    if (storageKey) void saveTransferPrefs(storageKey, merged);
-    onChange?.(merged);
+    const stored = flip(merged);
+    if (storageKey) void saveTransferPrefs(storageKey, stored);
+    onChange?.(stored);
   }
 
   const segments = groundSegments(legs, { startAddress, endAddress });
