@@ -1,31 +1,136 @@
 const Amadeus = require('amadeus');
+const { getHubsForCity } = require('../data/hubs');
+const { stubFare } = require('./stubPricing');
+
+// Single client: each instance manages its own OAuth token, so per-request
+// construction refetches tokens and burns rate limit.
+let client;
+function getClient() {
+  if (!client) {
+    client = new Amadeus({
+      clientId: process.env.AMADEUS_CLIENT_ID,
+      clientSecret: process.env.AMADEUS_CLIENT_SECRET,
+      hostname: process.env.AMADEUS_HOSTNAME || 'test',
+    });
+  }
+  return client;
+}
+
+const PLACEHOLDER_RE = /^(sandbox|your_|xxx|changeme|placeholder|test_key)/i;
+
+function credentialsMisconfigured() {
+  const id = process.env.AMADEUS_CLIENT_ID;
+  return !id || PLACEHOLDER_RE.test(id);
+}
+
+// Stub inventory must never silently replace real flights in production;
+// there it's a hard failure (surfaced via providersFailed), same gate as book().
+function stubAllowed() {
+  return process.env.NODE_ENV !== 'production' || process.env.MOCK_PROVIDERS === 'true';
+}
+
+// After the API rejects our credentials, back off instead of hammering it —
+// but retry periodically so a fixed key or transient 401 recovers without a restart.
+const AUTH_RETRY_MS = 10 * 60 * 1000;
+let authRejectedUntil = 0;
+
+function airportFor(cityCode) {
+  const airport = getHubsForCity(cityCode).find(h => h.type === 'airport');
+  return airport ? airport.code : cityCode;
+}
+
+// Deterministic per-route variation so stub prices/times don't look canned.
+function routeSeed(from, to) {
+  let h = 0;
+  for (const ch of `${from}-${to}`) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  return h;
+}
 
 /**
- * @param {{ from: string, to: string, departDate: string, adults: number }} params
+ * Realistic Amadeus-shaped stub offers, used when no valid API credentials
+ * are configured. Same pattern as the flixbus/rail stub providers.
+ * @returns {Object[]} Raw Amadeus flight offer objects
+ */
+function stubOffers(params) {
+  const from = airportFor(params.from);
+  const to = airportFor(params.to);
+  const seed = routeSeed(from, to);
+  const basePrice = stubFare(45 + (seed % 60), params.departDate); // ~€40–€150 per person
+  const durationMins = 75 + (seed % 90); // 1h15m–2h44m direct
+
+  const offer = (idSuffix, departHour, departMin, flightMins, price, stops) => {
+    const depart = new Date(`${params.departDate}T00:00:00Z`);
+    depart.setUTCHours(departHour, departMin, 0, 0);
+    const arrive = new Date(depart.getTime() + flightMins * 60 * 1000);
+    const dur = `PT${Math.floor(flightMins / 60)}H${flightMins % 60}M`;
+    // Emit full UTC ISO (with Z) so stub flight times are timezone-consistent
+    // with the bus/rail providers and unambiguous when stored/displayed.
+    const iso = d => d.toISOString();
+    return {
+      id: `stub-${from}-${to}-${params.departDate}-${idSuffix}`,
+      itineraries: [{
+        duration: dur,
+        segments: [{
+          departure: { iataCode: from, at: iso(depart) },
+          arrival: { iataCode: to, at: iso(arrive) },
+          numberOfStops: stops,
+        }],
+      }],
+      price: { grandTotal: (price * params.adults).toFixed(2), currency: 'EUR' },
+    };
+  };
+
+  return [
+    offer('001', 7, 10 + (seed % 40), durationMins, basePrice + 30, 0),
+    offer('002', 14, (seed % 50), durationMins + 10, basePrice, 0),
+    offer('003', 18, 25, durationMins + 95, Math.max(29, basePrice - 16), 1),
+  ];
+}
+
+/**
+ * @param {{ from: string, to: string, departDate: string, adults: number, returnDate?: string }} params
  * @returns {Promise<Object[]>} Raw Amadeus flight offer objects
  */
 async function search(params) {
-  const client = new Amadeus({
-    clientId: process.env.AMADEUS_CLIENT_ID,
-    clientSecret: process.env.AMADEUS_CLIENT_SECRET,
-    hostname: process.env.AMADEUS_HOSTNAME || 'test',
-  });
+  if (credentialsMisconfigured() || Date.now() < authRejectedUntil) {
+    if (stubAllowed()) return stubOffers(params);
+    throw new Error('Amadeus credentials are not configured');
+  }
 
-  const response = await client.shopping.flightOffersSearch.get({
-    originLocationCode: params.from,
-    destinationLocationCode: params.to,
-    departureDate: params.departDate,
-    adults: params.adults,
-    currencyCode: 'EUR',
-    max: 10,
-  });
-
-  return response.data || [];
+  try {
+    // Round trips are not supported yet: passing returnDate would return a
+    // combined-fare grandTotal we'd mis-attribute to a one-way outbound leg.
+    // Always search one-way until return legs are modelled end to end.
+    const response = await getClient().shopping.flightOffersSearch.get({
+      originLocationCode: params.from,
+      destinationLocationCode: params.to,
+      departureDate: params.departDate,
+      adults: params.adults,
+      currencyCode: 'EUR',
+      max: 10,
+    });
+    return response.data || [];
+  } catch (e) {
+    const status = e.response?.statusCode;
+    if (e.constructor?.name === 'AuthenticationError' || status === 401) {
+      authRejectedUntil = Date.now() + AUTH_RETRY_MS;
+      if (stubAllowed()) {
+        console.warn('[amadeus] API credentials rejected — serving stub flights, retrying API in 10 min');
+        return stubOffers(params);
+      }
+    }
+    throw e;
+  }
 }
 
-async function book({ trip, passengers }) {
+async function book(_booking) {
+  // Stub booking — must never run against real money in production.
+  if (process.env.NODE_ENV === 'production' && process.env.MOCK_PROVIDERS !== 'true') {
+    throw new Error('Amadeus booking is not implemented');
+  }
+  const { randomUUID } = require('crypto');
   return {
-    bookingRef: `AM-${Date.now()}`,
+    bookingRef: `AM-${randomUUID().replace(/-/g,'').slice(0,12).toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };

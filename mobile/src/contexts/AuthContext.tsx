@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getItem } from '../api/storage';
+import { setOnSessionExpired } from '../api/client';
 import * as authApi from '../api/auth';
+import { clearCheckout } from '../stores/checkoutStore';
+import { clearSearchResults } from '../stores/searchStore';
 
 interface User {
   email: string;
@@ -22,10 +25,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Restore session from stored token + email
-    Promise.all([getItem('accessToken'), getItem('userEmail')]).then(([token, email]) => {
-      if (token && email) setUser({ email });
-      setLoading(false);
+    Promise.all([getItem('accessToken'), getItem('userEmail')])
+      .then(([token, email]) => {
+        if (token && email) setUser({ email });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    // When a refresh fails mid-session the tokens are already gone; reflect
+    // that in the UI and clear per-user state so nothing leaks to the next
+    // account on this device (same as an explicit logout).
+    setOnSessionExpired(() => {
+      clearCheckout();
+      clearSearchResults();
+      setUser(null);
     });
+    return () => setOnSessionExpired(null);
   }, []);
 
   async function login(email: string, password: string): Promise<void> {
@@ -45,6 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Server logout is best-effort; always clear local session
     }
+    // Don't leak the previous user's searches, passengers, or bookings
+    // to the next account on this device.
+    clearCheckout();
+    clearSearchResults();
     setUser(null);
   }
 

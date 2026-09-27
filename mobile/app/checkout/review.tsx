@@ -1,193 +1,224 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { TRANSPORT_ICON } from '../../src/constants/transport';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
+import { RouteMapMenu } from '../../src/components/RouteMapMenu';
+import { ModeBadge } from '../../src/components/ModeBadge';
+import { Card } from '../../src/components/ui/Card';
+import { BottomBar } from '../../src/components/ui/BottomBar';
+import { EmptyState } from '../../src/components/ui/EmptyState';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import type { Direction } from '../../src/types/itinerary';
+import { providerName } from '../../src/constants/transport';
+import { formatDuration, formatStops, formatTime, formatDayLabel, toISODate } from '../../src/utils/format';
 import {
   getCheckoutTrip,
   getCheckoutAdults,
   getPassengers,
   getCheckoutItinerary,
+  getCheckoutTransfer,
+  setCheckoutTransfer,
 } from '../../src/stores/checkoutStore';
-import type { CheckoutItinerary, Connection } from '../../src/types/itinerary';
+import type { Trip } from '../../src/types/trip';
+
+type ReviewLeg = Trip & { originName?: string; destinationName?: string };
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const { format } = useCurrency();
   const router = useRouter();
   const itinerary = getCheckoutItinerary();
+  const flow = checkoutFlow(itinerary);
   const trip = getCheckoutTrip();
   const adults = getCheckoutAdults();
   const passengers = getPassengers();
+  const [mapDir, setMapDir] = useState<Direction>('outbound');
 
-  // Multi-leg itinerary view
-  if (itinerary) {
-    const totalEur = itinerary.totalPriceEur * itinerary.adults;
-
+  if (!itinerary && !trip) {
     return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppHeader title="Review Booking" />
-        <View style={styles.content}>
-          <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
-
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text testID="itinerary-header" style={[styles.cardTitle, { color: colors.text }]}>
-              Your Route · {itinerary.legs.length} legs
-            </Text>
-
-            {itinerary.legs.map((leg, i) => (
-              <React.Fragment key={i}>
-                <View testID={`leg-row-${i}`} style={styles.legRow}>
-                  <Text style={styles.legIcon}>{TRANSPORT_ICON[leg.transportType] ?? '🚐'}</Text>
-                  <Text style={[styles.legRoute, { color: colors.text }]}>
-                    {leg.originName} → {leg.destinationName}
-                  </Text>
-                  <Text testID={`leg-price-${i}`} style={[styles.legPrice, { color: colors.cheapest }]}>
-                    {format(leg.priceEur)}
-                  </Text>
-                </View>
-
-                {i < itinerary.connections.length && (
-                  <View testID={`transfer-${i}`} style={styles.transferRow}>
-                    <Text style={{ color: colors.textSecondary }}>
-                      {'   '}⏳{' '}
-                      {itinerary.connections[i].transferMins >= 60
-                        ? `${Math.floor(itinerary.connections[i].transferMins / 60)}h ${itinerary.connections[i].transferMins % 60}m`
-                        : `${itinerary.connections[i].transferMins} min`}{' '}
-                      transfer
-                      {itinerary.connections[i].warning
-                        ? ` ⚠️ ${itinerary.connections[i].warning}`
-                        : ''}
-                    </Text>
-                  </View>
-                )}
-              </React.Fragment>
-            ))}
-          </View>
-
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Passengers</Text>
-            {passengers.map((p, i) => (
-              <View key={i} style={styles.passengerRow}>
-                <Text style={{ color: colors.text }}>{p.name}</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{p.email}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-            <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-            <Text testID="total-price" style={[styles.totalPrice, { color: colors.cheapest }]}>
-              {format(totalEur)}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            testID="pay-btn"
-            style={[styles.button, { backgroundColor: colors.accent }]}
-            onPress={() => router.push('/checkout/payment')}
-          >
-            <Text style={styles.buttonText}>Proceed to Payment</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  }
-
-  // Single-trip fallback view
-  if (!trip) {
-    return (
-      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.textSecondary }}>No trip selected</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EmptyState icon="alert-circle-outline" title="No trip selected" actionLabel="Back to Search" onAction={() => router.replace('/(tabs)')} />
       </View>
     );
   }
 
-  const totalEur = trip.priceEur * adults;
-  const hours = Math.floor(trip.durationMins / 60);
-  const mins = trip.durationMins % 60;
+  const legs: ReviewLeg[] = itinerary ? itinerary.legs : [trip!];
+  // Provider prices already cover the whole party — this is what gets charged.
+  const totalEur = itinerary ? itinerary.totalPriceEur : trip!.priceEur;
+  const operators = [...new Set(legs.map(l => providerName(l.provider)))];
+  const first = legs[0];
+  const roundTrip = itinerary?.tripType === 'round_trip';
+  const dirOf = (l: ReviewLeg) => (l as { direction?: Direction }).direction ?? 'outbound';
+  const firstReturn = legs.find(l => dirOf(l) === 'return');
+  const mapLegs = roundTrip ? legs.filter(l => dirOf(l) === mapDir) : legs;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Review Booking" />
-      <View style={styles.content}>
-        <Text style={[styles.step, { color: colors.textSecondary }]}>Step 2 of 3</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader
+        title="Review booking"
+        subtitle={
+          roundTrip && firstReturn
+            ? `${formatDayLabel(toISODate(new Date(first.departAt)))} – ${formatDayLabel(toISODate(new Date(firstReturn.departAt)))}`
+            : formatDayLabel(toISODate(new Date(first.departAt)))
+        }
+        showBack
+      />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Review')} colors={colors} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Card>
+          <Text testID={itinerary ? 'itinerary-header' : undefined} style={[styles.overline, { color: colors.textSecondary }]}>
+            {roundTrip ? `ROUND TRIP · ${legs.length} LEGS` : itinerary ? `YOUR ROUTE · ${legs.length} LEGS` : 'YOUR TRIP'}
+          </Text>
+          {roundTrip && (
+            <Text testID="section-outbound" style={[styles.overline, styles.section, { color: colors.accent }]}>
+              OUTBOUND · {formatDayLabel(toISODate(new Date(first.departAt)))}
+            </Text>
+          )}
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={{ fontSize: 24 }}>{TRANSPORT_ICON[trip.transportType] ?? '🚐'}</Text>
-          <Text style={[styles.route, { color: colors.text }]}>
-            {trip.origin} → {trip.destination}
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>
-            {new Date(trip.departAt).toLocaleString()}
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>
-            {hours}h {mins}m · {trip.stops === 0 ? 'Direct' : `${trip.stops} stops`}
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>
-            {trip.provider}
-          </Text>
-          <Text style={[styles.price, { color: colors.cheapest }]}>
-            {format(trip.priceEur)} × {adults}
-          </Text>
-        </View>
+          {legs.map((leg, i) => (
+            <React.Fragment key={i}>
+              <View testID={`leg-row-${i}`} style={styles.legRow}>
+                <ModeBadge mode={leg.transportType} size={34} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.legRoute, { color: colors.text }]}>
+                    {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 1 }}>
+                    {formatTime(leg.departAt)} – {formatTime(leg.arriveAt)} · {formatDuration(leg.durationMins)} · {formatStops(leg.stops)}
+                  </Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 1 }}>{providerName(leg.provider)}</Text>
+                </View>
+                {itinerary ? (
+                  <Text testID={`leg-price-${i}`} style={[styles.legPrice, { color: colors.text }]}>
+                    {format(leg.priceEur)}
+                  </Text>
+                ) : null}
+              </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Passengers</Text>
+              {itinerary && i < itinerary.connections.length && (itinerary.connections[i].stay ? (
+                <Text testID="section-return" style={[styles.overline, styles.section, { color: colors.accent }]}>
+                  RETURN · {formatDayLabel(toISODate(new Date(legs[i + 1].departAt)))}
+                </Text>
+              ) : (
+                <View testID={`transfer-${i}`} style={styles.transferRow}>
+                  <Ionicons
+                    name={itinerary.connections[i].warning ? 'warning-outline' : 'swap-horizontal'}
+                    size={14}
+                    color={itinerary.connections[i].warning ? colors.warning : colors.textTertiary}
+                  />
+                  <Text style={{ color: itinerary.connections[i].warning ? colors.warning : colors.textSecondary, fontSize: 13 }}>
+                    {formatDuration(itinerary.connections[i].transferMins)} transfer
+                    {itinerary.connections[i].warning ? ` · ${itinerary.connections[i].warning}` : ''}
+                  </Text>
+                </View>
+              ))}
+            </React.Fragment>
+          ))}
+
+          {!itinerary && (
+            <Text style={[styles.partyPrice, { color: colors.textSecondary }]}>
+              {format(trip!.priceEur)} for {adults} {adults === 1 ? 'traveller' : 'travellers'}
+            </Text>
+          )}
+        </Card>
+
+        {roundTrip && (
+          <SegmentedControl
+            segments={[
+              { value: 'outbound', label: 'Outbound route' },
+              { value: 'return', label: 'Return route' },
+            ]}
+            value={mapDir}
+            onChange={setMapDir}
+            testIDPrefix="map-dir"
+          />
+        )}
+        <RouteMapMenu
+          key={mapDir}
+          legs={mapLegs.map(l => ({ origin: l.origin, destination: l.destination, transportType: l.transportType }))}
+          initialPrefs={getCheckoutTransfer()}
+          onChange={setCheckoutTransfer}
+          reversed={roundTrip && mapDir === 'return'}
+          colors={colors}
+        />
+
+        <Card>
+          <View style={styles.cardHead}>
+            <Text style={[styles.overline, { color: colors.textSecondary }]}>PASSENGERS</Text>
+            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit passengers">
+              <Text style={{ color: colors.accent, fontWeight: '700' }}>Edit</Text>
+            </Pressable>
+          </View>
           {passengers.map((p, i) => (
             <View key={i} style={styles.passengerRow}>
-              <Text style={{ color: colors.text }}>{p.name}</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{p.email}</Text>
+              <Ionicons name="person-circle-outline" size={22} color={colors.textSecondary} />
+              <View>
+                <Text style={{ color: colors.text, fontWeight: '600' }}>{p.name}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{p.email}</Text>
+              </View>
             </View>
           ))}
-        </View>
+        </Card>
 
-        <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-          <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-          <Text testID="total-price" style={[styles.totalPrice, { color: colors.cheapest }]}>
-            {format(totalEur)}
-          </Text>
-        </View>
+        <Card>
+          <Text style={[styles.overline, { color: colors.textSecondary, marginBottom: 8 }]}>PRICE DETAILS</Text>
+          {legs.map((leg, i) => (
+            <View key={i} style={styles.lineRow}>
+              <Text style={{ color: colors.textSecondary }}>
+                {dirOf(leg) === 'return' && roundTrip ? 'Return · ' : ''}{providerName(leg.provider)} · {leg.origin} → {leg.destination}
+              </Text>
+              <Text style={{ color: colors.text, fontVariant: ['tabular-nums'] }}>{format(leg.priceEur)}</Text>
+            </View>
+          ))}
+          <View style={styles.lineRow}>
+            <Text style={{ color: colors.textSecondary }}>Booking fee</Text>
+            <Text style={{ color: colors.cheapest, fontWeight: '700' }}>Free</Text>
+          </View>
+          <View style={[styles.lineRow, styles.totalLine, { borderTopColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>Total</Text>
+            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>{format(totalEur)}</Text>
+          </View>
+        </Card>
 
-        <TouchableOpacity
-          testID="pay-btn"
-          style={[styles.button, { backgroundColor: colors.accent }]}
-          onPress={() => router.push('/checkout/payment')}
-        >
-          <Text style={styles.buttonText}>Proceed to Payment</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        {itinerary && (
+          <View style={styles.note}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.textTertiary} />
+            <Text style={{ color: colors.textTertiary, fontSize: 12, flex: 1 }}>
+              You’ll receive {legs.length} separate tickets ({operators.join(', ')}) — all kept together in My Trips.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <BottomBar
+        caption={adults === 1 ? 'Total' : `Total · ${adults} adults`}
+        amount={format(totalEur)}
+        amountTestID="total-price"
+        ctaTitle="Continue to payment"
+        ctaTestID="pay-btn"
+        onPress={() => router.push('/checkout/payment')}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, gap: 12 },
-  step: { fontSize: 12, fontWeight: '600' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 6 },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  route: { fontSize: 18, fontWeight: '700' },
-  price: { fontSize: 18, fontWeight: '600', marginTop: 4 },
-  passengerRow: { paddingVertical: 4 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, paddingTop: 16 },
-  totalLabel: { fontSize: 18, fontWeight: '600' },
-  totalPrice: { fontSize: 24, fontWeight: '700' },
-  button: { borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  // Multi-leg styles
-  legRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  legIcon: { fontSize: 20 },
-  legRoute: { flex: 1, fontSize: 15, fontWeight: '600' },
-  legPrice: { fontSize: 15, fontWeight: '600' },
-  transferRow: { paddingLeft: 8, paddingVertical: 2 },
+  content: { padding: 16, gap: 12, paddingBottom: 32 },
+  overline: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
+  legRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  legRoute: { fontSize: 15, fontWeight: '700' },
+  legPrice: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  section: { marginTop: 10, marginBottom: 2 },
+  transferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 46, paddingBottom: 4 },
+  partyPrice: { fontSize: 13, marginTop: 4 },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  passengerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  lineRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, gap: 12 },
+  totalLine: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6, paddingTop: 10 },
+  note: { flexDirection: 'row', gap: 6, paddingHorizontal: 4 },
 });

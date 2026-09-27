@@ -8,6 +8,8 @@
  * @param {{ from: string, to: string, departDate: string, adults: number, returnDate?: string }} params
  * @returns {Promise<Object[]>} Raw FlixBus-shaped results
  */
+const { stubFare } = require('./stubPricing');
+
 async function search(params) {
   // Stub: returns realistic FlixBus-shaped data
   const base = new Date(`${params.departDate}T06:30:00Z`);
@@ -15,8 +17,8 @@ async function search(params) {
 
   return [
     {
-      id: `flixbus-${params.from}-${params.to}-001`,
-      price: { amount: 18 * params.adults, currency: 'EUR' },
+      id: `flixbus-${params.from}-${params.to}-${params.departDate}-001`,
+      price: { amount: stubFare(18, params.departDate) * params.adults, currency: 'EUR' },
       departure_time: base.toISOString(),
       arrival_time: arrive.toISOString(),
       duration_minutes: 270,
@@ -26,8 +28,8 @@ async function search(params) {
       deep_link: `https://flixbus.com/bus/${params.from.toLowerCase()}-${params.to.toLowerCase()}`,
     },
     {
-      id: `flixbus-${params.from}-${params.to}-002`,
-      price: { amount: 24 * params.adults, currency: 'EUR' },
+      id: `flixbus-${params.from}-${params.to}-${params.departDate}-002`,
+      price: { amount: stubFare(24, params.departDate) * params.adults, currency: 'EUR' },
       departure_time: new Date(`${params.departDate}T14:00:00Z`).toISOString(),
       arrival_time: new Date(`${params.departDate}T18:30:00Z`).toISOString(),
       duration_minutes: 270,
@@ -39,9 +41,14 @@ async function search(params) {
   ];
 }
 
-async function book({ trip, passengers }) {
+async function book(_booking) {
+  // Stub booking — must never run against real money in production.
+  if (process.env.NODE_ENV === 'production' && process.env.MOCK_PROVIDERS !== 'true') {
+    throw new Error('FlixBus booking is not implemented');
+  }
+  const { randomUUID } = require('crypto');
   return {
-    bookingRef: `FB-${Date.now()}`,
+    bookingRef: `FB-${randomUUID().replace(/-/g,'').slice(0,12).toUpperCase()}`,
     status: 'confirmed',
     ticketUrl: null,
   };

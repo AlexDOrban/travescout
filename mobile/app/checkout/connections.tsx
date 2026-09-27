@@ -7,14 +7,22 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { TRANSPORT_ICON } from '../../src/constants/transport';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
+import { ModeBadge } from '../../src/components/ModeBadge';
+import { BottomBar } from '../../src/components/ui/BottomBar';
+import { Ionicons } from '@expo/vector-icons';
+import { providerName, TRANSPORT_LABEL } from '../../src/constants/transport';
+import { formatTime } from '../../src/utils/format';
 import {
   getCheckoutItinerary,
+  getCheckoutMainLeg,
   setCheckoutItinerary,
+  getDirectionConnections,
+  setDirectionConnections,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
 import { searchConnections } from '../../src/api/itinerary';
@@ -22,20 +30,45 @@ import {
   needsDepartureConnection,
   needsArrivalConnection,
 } from '../../src/utils/connections';
-import type { Leg } from '../../src/types/itinerary';
+import type { Direction, Leg } from '../../src/types/itinerary';
+
+function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {
+  return Math.round(
+    (new Date(mainDepartAt).getTime() - new Date(connectionArriveAt).getTime()) /
+      (1000 * 60),
+  );
+}
+
+function minutesAfter(mainArriveAt: string, connectionDepartAt: string): number {
+  return Math.round(
+    (new Date(connectionDepartAt).getTime() - new Date(mainArriveAt).getTime()) /
+      (1000 * 60),
+  );
+}
 
 export default function ConnectionsScreen() {
   const { colors } = useTheme();
   const { format } = useCurrency();
   const router = useRouter();
 
+  const params = useLocalSearchParams<{ direction?: string }>();
+  const direction: Direction = params.direction === 'return' ? 'return' : 'outbound';
+
   const itinerary = getCheckoutItinerary();
+  const roundTrip = itinerary?.tripType === 'round_trip';
+  const flow = checkoutFlow(itinerary);
+  const step = roundTrip ? (direction === 'return' ? 'Return connections' : 'Outbound connections') : 'Connections';
   const searchMeta = getSearchMeta();
-  const mainLeg = itinerary?.legs[0] ?? null;
+  // Never derive the main leg from legs[0]: once connections are added the
+  // first leg is the departure feeder, not the main leg.
+  const mainLeg = getCheckoutMainLeg(direction);
   const adults = itinerary?.adults ?? 1;
 
-  const originCityCode = searchMeta?.from ?? '';
-  const destCityCode = searchMeta?.to ?? '';
+  // The return runs from the destination city back to the origin city.
+  const originCityCode = (direction === 'return' ? searchMeta?.to : searchMeta?.from) ?? '';
+  const destCityCode = (direction === 'return' ? searchMeta?.from : searchMeta?.to) ?? '';
+  // Coming back to this pass keeps what was picked before.
+  const saved = roundTrip ? getDirectionConnections(direction) : undefined;
 
   const showDeparture = mainLeg
     ? needsDepartureConnection(originCityCode, mainLeg.origin)
@@ -46,125 +79,94 @@ export default function ConnectionsScreen() {
 
   const [departureOptions, setDepartureOptions] = useState<Leg[]>([]);
   const [arrivalOptions, setArrivalOptions] = useState<Leg[]>([]);
-  const [selectedDeparture, setSelectedDeparture] = useState<Leg | null>(null);
-  const [selectedArrival, setSelectedArrival] = useState<Leg | null>(null);
+  const [selectedDeparture, setSelectedDeparture] = useState<Leg | null>(saved?.departure ?? null);
+  const [selectedArrival, setSelectedArrival] = useState<Leg | null>(saved?.arrival ?? null);
   const [skipDeparture, setSkipDeparture] = useState(false);
   const [skipArrival, setSkipArrival] = useState(false);
 
   const [loadingDeparture, setLoadingDeparture] = useState(false);
   const [loadingArrival, setLoadingArrival] = useState(false);
-  const [error, setError] = useState('');
+  const [departureError, setDepartureError] = useState('');
+  const [arrivalError, setArrivalError] = useState('');
+  const [departureLoaded, setDepartureLoaded] = useState(false);
+  const [arrivalLoaded, setArrivalLoaded] = useState(false);
+  const [departureNote, setDepartureNote] = useState('');
+  const [arrivalNote, setArrivalNote] = useState('');
+
+  function fetchDeparture() {
+    if (!mainLeg || !showDeparture) return;
+    setDepartureError('');
+    setDepartureNote('');
+    setLoadingDeparture(true);
+    searchConnections({
+      hub: mainLeg.origin,
+      cityCode: originCityCode,
+      direction: 'to',
+      dateTime: mainLeg.departAt,
+      adults,
+    })
+      .then(res => {
+        // Drop options that don't actually connect (negative buffer).
+        setDepartureOptions(
+          res.connections.filter(leg => minutesBefore(leg.arriveAt, mainLeg.departAt) > 0),
+        );
+        if (res.meta?.providersFailed?.length) {
+          setDepartureNote(`Some providers didn't respond (${res.meta.providersFailed.join(', ')}).`);
+        }
+      })
+      .catch(err => setDepartureError(err.message || 'Failed to load connections'))
+      .finally(() => {
+        setLoadingDeparture(false);
+        setDepartureLoaded(true);
+      });
+  }
+
+  function fetchArrival() {
+    if (!mainLeg || !showArrival) return;
+    setArrivalError('');
+    setArrivalNote('');
+    setLoadingArrival(true);
+    searchConnections({
+      hub: mainLeg.destination,
+      cityCode: destCityCode,
+      direction: 'from',
+      dateTime: mainLeg.arriveAt,
+      adults,
+    })
+      .then(res => {
+        setArrivalOptions(
+          res.connections.filter(leg => minutesAfter(mainLeg.arriveAt, leg.departAt) > 0),
+        );
+        if (res.meta?.providersFailed?.length) {
+          setArrivalNote(`Some providers didn't respond (${res.meta.providersFailed.join(', ')}).`);
+        }
+      })
+      .catch(err => setArrivalError(err.message || 'Failed to load connections'))
+      .finally(() => {
+        setLoadingArrival(false);
+        setArrivalLoaded(true);
+      });
+  }
 
   useEffect(() => {
-    if (!mainLeg) return;
-
-    async function fetchConnections() {
-      setError('');
-      const promises: Promise<void>[] = [];
-
-      if (showDeparture) {
-        setLoadingDeparture(true);
-        promises.push(
-          searchConnections({
-            hub: mainLeg!.origin,
-            cityCode: originCityCode,
-            direction: 'to',
-            dateTime: mainLeg!.departAt,
-            adults,
-          })
-            .then(res => {
-              setDepartureOptions(res.connections);
-            })
-            .catch(err => {
-              setError(err.message || 'Failed to load connections');
-            })
-            .finally(() => setLoadingDeparture(false)),
-        );
-      }
-
-      if (showArrival) {
-        setLoadingArrival(true);
-        promises.push(
-          searchConnections({
-            hub: mainLeg!.destination,
-            cityCode: destCityCode,
-            direction: 'from',
-            dateTime: mainLeg!.arriveAt,
-            adults,
-          })
-            .then(res => {
-              setArrivalOptions(res.connections);
-            })
-            .catch(err => {
-              setError(err.message || 'Failed to load connections');
-            })
-            .finally(() => setLoadingArrival(false)),
-        );
-      }
-
-      await Promise.all(promises);
-    }
-
-    fetchConnections();
+    // The loading flags flip synchronously here by design: both sections must
+    // show spinners on first paint, before the network round-trips resolve.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDeparture();
+    fetchArrival();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleRetry() {
-    setError('');
-    setLoadingDeparture(false);
-    setLoadingArrival(false);
-    // Re-trigger by toggling state — simplest approach: re-mount would be ideal
-    // Instead, just call fetch again inline
-    if (!mainLeg) return;
-
-    if (showDeparture) {
-      setLoadingDeparture(true);
-      searchConnections({
-        hub: mainLeg.origin,
-        cityCode: originCityCode,
-        direction: 'to',
-        dateTime: mainLeg.departAt,
-        adults,
-      })
-        .then(res => setDepartureOptions(res.connections))
-        .catch(err => setError(err.message || 'Failed to load connections'))
-        .finally(() => setLoadingDeparture(false));
-    }
-
-    if (showArrival) {
-      setLoadingArrival(true);
-      searchConnections({
-        hub: mainLeg.destination,
-        cityCode: destCityCode,
-        direction: 'from',
-        dateTime: mainLeg.arriveAt,
-        adults,
-      })
-        .then(res => setArrivalOptions(res.connections))
-        .catch(err => setError(err.message || 'Failed to load connections'))
-        .finally(() => setLoadingArrival(false));
-    }
-  }
 
   function handleContinue() {
     if (!mainLeg) return;
     const depLeg = skipDeparture ? undefined : (selectedDeparture ?? undefined);
     const arrLeg = skipArrival ? undefined : (selectedArrival ?? undefined);
+    if (roundTrip) {
+      setDirectionConnections(direction, depLeg, arrLeg);
+      router.push(direction === 'outbound' ? '/checkout/connections?direction=return' : '/checkout/transfer');
+      return;
+    }
     setCheckoutItinerary(mainLeg, adults, depLeg, arrLeg);
-    router.push('/checkout/passengers');
-  }
-
-  function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {
-    return Math.round(
-      (new Date(mainDepartAt).getTime() - new Date(connectionArriveAt).getTime()) /
-        (1000 * 60),
-    );
-  }
-
-  function minutesAfter(mainArriveAt: string, connectionDepartAt: string): number {
-    return Math.round(
-      (new Date(connectionDepartAt).getTime() - new Date(mainArriveAt).getTime()) /
-        (1000 * 60),
-    );
+    router.push('/checkout/transfer');
   }
 
   if (!mainLeg) {
@@ -180,32 +182,54 @@ export default function ConnectionsScreen() {
 
   const needsAny = showDeparture || showArrival;
 
+  const shortTime = formatTime;
+  const bufferLabel = (mins: number) =>
+    mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60 ? `${mins % 60}m` : ''}`.trim() : `${mins} min`;
+
+  const totalEur =
+    mainLeg.priceEur +
+    (skipDeparture ? 0 : selectedDeparture?.priceEur ?? 0) +
+    (skipArrival ? 0 : selectedArrival?.priceEur ?? 0);
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Add Connections" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView style={styles.container}>
+      <AppHeader title={roundTrip ? step : 'Add Connections'} showBack />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, step)} colors={colors} />
       <View style={styles.content}>
 
+        {/* Selected main leg summary */}
+        <View
+          testID="selected-main-leg"
+          style={[styles.selectedCard, { backgroundColor: colors.accent + '14', borderColor: colors.accent }]}
+        >
+          <Text style={[styles.selectedLabel, { color: colors.accent }]}>
+            YOUR SELECTED {(TRANSPORT_LABEL[mainLeg.transportType] ?? 'trip').toUpperCase()}
+          </Text>
+          <View style={styles.selectedRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.route, { color: colors.text }]}>
+                {mainLeg.origin} → {mainLeg.destination}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                {shortTime(mainLeg.departAt)} → {shortTime(mainLeg.arriveAt)}
+              </Text>
+            </View>
+            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
+              {format(mainLeg.priceEur)}
+            </Text>
+          </View>
+        </View>
+
         {!needsAny && (
-          <View testID="no-connections" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>No connections needed</Text>
-            <Text style={{ color: colors.textSecondary }}>
+          <View testID="no-connections" style={[styles.noConnCard, { borderColor: colors.border }]}>
+            <Ionicons name="checkmark-circle" size={36} color={colors.cheapest} />
+            <Text style={[styles.sectionTitle, { color: colors.cheapest }]}>No connections needed</Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
               Your route departs and arrives at your search cities
             </Text>
           </View>
         )}
-
-        {error ? (
-          <View testID="error-container">
-            <Text testID="error" style={{ color: colors.error, marginBottom: 8 }}>{error}</Text>
-            <TouchableOpacity
-              testID="retry-btn"
-              style={[styles.retryButton, { borderColor: colors.accent }]}
-              onPress={handleRetry}
-            >
-              <Text style={{ color: colors.accent }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         {showDeparture && (
           <View>
@@ -213,13 +237,39 @@ export default function ConnectionsScreen() {
               Getting to {mainLeg.origin}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Bus & train options from {searchMeta?.from}
+              Bus & train options from {originCityCode}
             </Text>
+
+            {departureError ? (
+              <View testID="departure-error-container">
+                <Text testID="departure-error" style={{ color: colors.error, marginBottom: 8 }}>
+                  {departureError}
+                </Text>
+                <TouchableOpacity
+                  testID="departure-retry-btn"
+                  style={[styles.retryButton, { borderColor: colors.accent }]}
+                  onPress={fetchDeparture}
+                >
+                  <Text style={{ color: colors.accent }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {departureNote ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6 }}>{departureNote}</Text>
+            ) : null}
 
             {loadingDeparture ? (
               <ActivityIndicator testID="departure-loading" color={colors.accent} style={styles.spinner} />
             ) : (
               <>
+                {!departureError && departureLoaded && departureOptions.length === 0 ? (
+                  <View testID="departure-empty" style={[styles.emptyCard, { borderColor: colors.border }]}>
+                    <Text style={{ color: colors.textSecondary }}>
+                      No connecting bus or train found for this time. You can skip and arrange your own way.
+                    </Text>
+                  </View>
+                ) : null}
                 {departureOptions.map(leg => {
                   const isSelected = selectedDeparture?.id === leg.id;
                   const minsBuffer = minutesBefore(leg.arriveAt, mainLeg.departAt);
@@ -240,21 +290,29 @@ export default function ConnectionsScreen() {
                         setSkipDeparture(false);
                       }}
                     >
-                      <Text style={{ fontSize: 20 }}>
-                        {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                      </Text>
-                      <Text style={[styles.route, { color: colors.text }]}>
-                        {leg.origin} → {leg.destination}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {new Date(leg.departAt).toLocaleString()} – {new Date(leg.arriveAt).toLocaleString()}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {minsBuffer} min before main leg
-                      </Text>
-                      <Text style={{ color: colors.cheapest, fontWeight: '600' }}>
-                        {format(leg.priceEur)}
-                      </Text>
+                      <View style={styles.optionRow}>
+                        <ModeBadge mode={leg.transportType} size={34} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.route, { color: colors.text }]}>
+                            {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
+                          </Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {providerName(leg.provider)}
+                          </Text>
+                          <Text
+                            style={{
+                              color: minsBuffer < 60 ? colors.warning : colors.cheapest,
+                              fontSize: 13,
+                              marginTop: 2,
+                            }}
+                          >
+                            {bufferLabel(minsBuffer)} before main leg{minsBuffer < 60 ? ' · tight' : ''}
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
+                          {format(leg.priceEur)}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -287,13 +345,39 @@ export default function ConnectionsScreen() {
               Getting from {mainLeg.destination}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Bus & train options to {searchMeta?.to}
+              Bus & train options to {destCityCode}
             </Text>
+
+            {arrivalError ? (
+              <View testID="arrival-error-container">
+                <Text testID="arrival-error" style={{ color: colors.error, marginBottom: 8 }}>
+                  {arrivalError}
+                </Text>
+                <TouchableOpacity
+                  testID="arrival-retry-btn"
+                  style={[styles.retryButton, { borderColor: colors.accent }]}
+                  onPress={fetchArrival}
+                >
+                  <Text style={{ color: colors.accent }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {arrivalNote ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6 }}>{arrivalNote}</Text>
+            ) : null}
 
             {loadingArrival ? (
               <ActivityIndicator testID="arrival-loading" color={colors.accent} style={styles.spinner} />
             ) : (
               <>
+                {!arrivalError && arrivalLoaded && arrivalOptions.length === 0 ? (
+                  <View testID="arrival-empty" style={[styles.emptyCard, { borderColor: colors.border }]}>
+                    <Text style={{ color: colors.textSecondary }}>
+                      No connecting bus or train found for this time. You can skip and arrange your own way.
+                    </Text>
+                  </View>
+                ) : null}
                 {arrivalOptions.map(leg => {
                   const isSelected = selectedArrival?.id === leg.id;
                   const minsBuffer = minutesAfter(mainLeg.arriveAt, leg.departAt);
@@ -314,21 +398,29 @@ export default function ConnectionsScreen() {
                         setSkipArrival(false);
                       }}
                     >
-                      <Text style={{ fontSize: 20 }}>
-                        {TRANSPORT_ICON[leg.transportType] ?? '🚐'}
-                      </Text>
-                      <Text style={[styles.route, { color: colors.text }]}>
-                        {leg.origin} → {leg.destination}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {new Date(leg.departAt).toLocaleString()} – {new Date(leg.arriveAt).toLocaleString()}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary }}>
-                        {minsBuffer} min after main leg
-                      </Text>
-                      <Text style={{ color: colors.cheapest, fontWeight: '600' }}>
-                        {format(leg.priceEur)}
-                      </Text>
+                      <View style={styles.optionRow}>
+                        <ModeBadge mode={leg.transportType} size={34} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.route, { color: colors.text }]}>
+                            {leg.originName ?? leg.origin} → {leg.destinationName ?? leg.destination}
+                          </Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                            {shortTime(leg.departAt)} → {shortTime(leg.arriveAt)} · {providerName(leg.provider)}
+                          </Text>
+                          <Text
+                            style={{
+                              color: minsBuffer < 45 ? colors.warning : colors.cheapest,
+                              fontSize: 13,
+                              marginTop: 2,
+                            }}
+                          >
+                            {bufferLabel(minsBuffer)} after main leg{minsBuffer < 45 ? ' · tight' : ''}
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>
+                          {format(leg.priceEur)}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -355,33 +447,54 @@ export default function ConnectionsScreen() {
           </View>
         )}
 
-        <TouchableOpacity
-          testID="continue-btn"
-          style={[styles.button, { backgroundColor: colors.accent }]}
-          onPress={handleContinue}
-        >
-          <Text style={styles.buttonText}>Continue</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
+      <BottomBar
+        caption={roundTrip ? (direction === 'return' ? 'Return total' : 'Outbound total') : 'Total for all legs'}
+        amount={format(totalEur)}
+        ctaTitle="Continue"
+        ctaTestID="continue-btn"
+        onPress={handleContinue}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, gap: 12 },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   subtitle: { fontSize: 13, marginBottom: 8 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 6 },
+  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6, marginBottom: 10 },
+  selectedCard: { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 8 },
+  selectedLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
+  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  noConnCard: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyCard: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+  },
   route: { fontSize: 16, fontWeight: '600' },
   spinner: { marginVertical: 16 },
   skipButton: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   retryButton: {
     borderWidth: 1,

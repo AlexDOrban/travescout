@@ -35,6 +35,5 @@ export interface SearchParams {
   from: string;
   to: string;
   departDate: string;
-  returnDate?: string;
   adults?: number;
 }

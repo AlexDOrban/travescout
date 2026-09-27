@@ -35,6 +35,22 @@ const tripData = () => ({
   rawTicketUrl: null,
 });
 
+describe('Trip model — direction', () => {
+  afterEach(async () => {
+    await db.query('DELETE FROM trips WHERE user_id = $1', [testUserId]);
+  });
+
+  it('defaults a leg to the outbound direction', async () => {
+    const trip = await Trip.create(tripData());
+    expect(trip.direction).toBe('outbound');
+  });
+
+  it('stores a return leg', async () => {
+    const trip = await Trip.create({ ...tripData(), bookingRef: 'FB-TEST-RET', direction: 'return' });
+    expect(trip.direction).toBe('return');
+  });
+});
+
 describe('Trip model', () => {
   let otherUserId;
 

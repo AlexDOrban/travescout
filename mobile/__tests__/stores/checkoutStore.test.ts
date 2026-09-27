@@ -9,6 +9,13 @@ import {
   clearCheckout,
   setCheckoutItinerary,
   getCheckoutItinerary,
+  setCheckoutTransfer,
+  getCheckoutTransfer,
+  setCheckoutRoundTrip,
+  setDirectionConnections,
+  getDirectionConnections,
+  getCheckoutMainLeg,
+  getCheckoutIdempotencyKey,
 } from '../../src/stores/checkoutStore';
 import type { Leg } from '../../src/types/itinerary';
 
@@ -102,5 +109,83 @@ describe('Checkout Store - Itinerary', () => {
     setCheckoutItinerary(makeLeg(), 1);
     clearCheckout();
     expect(getCheckoutItinerary()).toBeNull();
+  });
+
+  it('stores and retrieves ground-transfer details', () => {
+    setCheckoutTransfer({ startAddress: 'Savoy Hotel', endAddress: 'Lutetia', travelMode: 'walking' });
+    expect(getCheckoutTransfer()).toEqual({
+      startAddress: 'Savoy Hotel',
+      endAddress: 'Lutetia',
+      travelMode: 'walking',
+    });
+  });
+
+  it('defaults transfer to empty addresses with transit mode', () => {
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
+  });
+
+  it('resets transfer when a new trip or itinerary starts checkout', () => {
+    setCheckoutTransfer({ startAddress: 'X', endAddress: 'Y', travelMode: 'driving' });
+    setCheckoutTrip(MOCK_TRIP, 1);
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
+
+    setCheckoutTransfer({ startAddress: 'X', endAddress: 'Y', travelMode: 'driving' });
+    setCheckoutItinerary(makeLeg(), 1);
+    expect(getCheckoutTransfer()).toEqual({ startAddress: '', endAddress: '', travelMode: 'transit' });
+  });
+});
+
+describe('checkoutStore — round trips', () => {
+  const out = makeLeg({ id: 'out', origin: 'LON', destination: 'PAR', priceEur: 50, arriveAt: '2030-06-15T10:30:00Z' });
+  const ret = makeLeg({ id: 'ret', origin: 'PAR', destination: 'LON', priceEur: 40, departAt: '2030-06-18T17:00:00Z', arriveAt: '2030-06-18T19:30:00Z' });
+  const feeder = (id: string) => makeLeg({ id, priceEur: 5 });
+
+  it('builds a two-leg round-trip itinerary', () => {
+    setCheckoutRoundTrip(out, ret, 2, false);
+    const it = getCheckoutItinerary()!;
+    expect(it.tripType).toBe('round_trip');
+    expect(it.viaConnections).toBe(false);
+    expect(it.legs.map(l => [l.id, l.direction])).toEqual([['out', 'outbound'], ['ret', 'return']]);
+    expect(it.totalPriceEur).toBe(90);
+    expect(it.adults).toBe(2);
+    expect(it.connections[0].stay).toBe(true);
+    expect(getCheckoutMainLeg('return')!.id).toBe('ret');
+    expect(getCheckoutMainLeg()!.id).toBe('out');
+  });
+
+  it('orders feeders per direction and keeps the idempotency key', () => {
+    setCheckoutRoundTrip(out, ret, 1, true);
+    const key = getCheckoutIdempotencyKey();
+    setDirectionConnections('outbound', feeder('out-dep'), undefined);
+    setDirectionConnections('return', undefined, feeder('ret-arr'));
+    const ids = getCheckoutItinerary()!.legs.map(l => l.id);
+    expect(ids).toEqual(['out-dep', 'out', 'ret', 'ret-arr']);
+    expect(getCheckoutItinerary()!.totalPriceEur).toBe(100);
+    expect(getCheckoutIdempotencyKey()).toBe(key);
+  });
+
+  it('keeps the return feeders when the outbound feeders change (back navigation)', () => {
+    setCheckoutRoundTrip(out, ret, 1, true);
+    setDirectionConnections('outbound', feeder('dep-1'), undefined);
+    setDirectionConnections('return', feeder('ret-dep'), undefined);
+    setDirectionConnections('outbound', feeder('dep-2'), undefined);
+    expect(getCheckoutItinerary()!.legs.map(l => l.id)).toEqual(['dep-2', 'out', 'ret-dep', 'ret']);
+    expect(getDirectionConnections('return').departure!.id).toBe('ret-dep');
+  });
+
+  it('one-way itineraries stay one-way and tag outbound', () => {
+    setCheckoutItinerary(out, 1);
+    const it = getCheckoutItinerary()!;
+    expect(it.tripType).toBe('one_way');
+    expect(it.legs[0].direction).toBe('outbound');
+    expect(getCheckoutMainLeg('return')).toBeNull();
+  });
+
+  it('clearCheckout forgets both directions', () => {
+    setCheckoutRoundTrip(out, ret, 1, false);
+    clearCheckout();
+    expect(getCheckoutMainLeg()).toBeNull();
+    expect(getCheckoutMainLeg('return')).toBeNull();
+    expect(getDirectionConnections('outbound')).toEqual({});
   });
 });

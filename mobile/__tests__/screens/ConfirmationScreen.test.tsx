@@ -1,12 +1,12 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import ConfirmationScreen from '../../app/confirmation';
+import { getBookingResult, clearCheckout } from '../../src/stores/checkoutStore';
+import { setSearchQuery, getSearchQuery } from '../../src/stores/searchStore';
+
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -21,11 +21,6 @@ const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import ConfirmationScreen from '../../app/confirmation';
-import { getBookingResult, clearCheckout } from '../../src/stores/checkoutStore';
 
 const mockGetBookingResult = getBookingResult as jest.Mock;
 const mockClearCheckout = clearCheckout as jest.Mock;
@@ -76,6 +71,13 @@ describe('ConfirmationScreen', () => {
     expect(getByText('No booking found')).toBeTruthy();
   });
 
+  it('offers airport directions via the route-on-map menu', () => {
+    const { getByTestId, getByText } = render(<ConfirmationScreen />);
+    fireEvent.press(getByTestId('route-map-toggle'));
+    expect(getByText(/London, UK → Paris, FR/)).toBeTruthy();
+    expect(getByTestId('route-start-address')).toBeTruthy();
+  });
+
   it('shows per-leg status for itinerary booking', () => {
     mockGetBookingResult.mockReturnValue({
       bookingRef: 'TS-123',
@@ -95,5 +97,62 @@ describe('ConfirmationScreen', () => {
     expect(getByText('BUD → VIE')).toBeTruthy();
     expect(getByText('VIE → NCE')).toBeTruthy();
     expect(getByText('TS-123')).toBeTruthy();
+  });
+});
+
+describe('round trips', () => {
+  const LON = { name: 'London', code: 'LON', country: 'UK' } as any;
+  const PAR = { name: 'Paris', code: 'PAR', country: 'FR' } as any;
+  const leg = (id: string, order: number, direction: 'outbound' | 'return', status = 'confirmed') => ({
+    id, provider: 'rail', booking_ref: status === 'confirmed' ? `REF-${id}` : null,
+    origin: direction === 'outbound' ? 'LON' : 'PAR', destination: direction === 'outbound' ? 'PAR' : 'LON',
+    depart_at: '2030-06-15T08:00:00Z', arrive_at: '2030-06-15T10:00:00Z', return_at: null,
+    price_eur: '40.00', currency_display: 'EUR', status, raw_ticket_url: null, created_at: '',
+    leg_order: order, direction,
+  });
+  const booking = (retStatus: string) => ({
+    bookingRef: 'TS-RT',
+    status: retStatus === 'confirmed' ? 'confirmed' : 'partially_failed',
+    itinerary: {
+      id: 'i', booking_ref: 'TS-RT', origin: 'LON', destination: 'PAR', depart_at: '2030-06-15T08:00:00Z',
+      arrive_at: '2030-06-18T19:00:00Z', total_price_eur: '40.00', status: 'x', trip_type: 'round_trip',
+      legs: [leg('o', 0, 'outbound'), leg('r', 1, 'return', retStatus)],
+    },
+    ...(retStatus === 'confirmed' ? {} : { failedLegs: [{ legOrder: 1, error: 'Sold out' }] }),
+  });
+
+  it('shows both directions and a round-trip route', () => {
+    mockGetBookingResult.mockReturnValue(booking('confirmed'));
+    const { getByTestId, getByText } = render(<ConfirmationScreen />);
+    expect(getByTestId('confirm-section-outbound')).toBeTruthy();
+    expect(getByTestId('confirm-section-return')).toBeTruthy();
+    expect(getByText('LON ⇄ PAR')).toBeTruthy();
+  });
+
+  it('offers to search the return again when it failed', () => {
+    setSearchQuery({ from: LON, to: PAR, departDate: '2030-06-15', returnDate: '2030-06-18', adults: 2 });
+    mockGetBookingResult.mockReturnValue(booking('failed'));
+    const { getByTestId, getByText } = render(<ConfirmationScreen />);
+    expect(getByText(/Return not booked — you weren’t charged for it/)).toBeTruthy();
+    fireEvent.press(getByTestId('search-return-again'));
+    expect(getSearchQuery()).toEqual({ from: PAR, to: LON, departDate: '2030-06-18', adults: 2 });
+    expect(mockClearCheckout).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith('/results');
+  });
+
+  it('does not claim a partly booked direction was free or offer to rebook it', () => {
+    setSearchQuery({ from: LON, to: PAR, departDate: '2030-06-15', returnDate: '2030-06-18', adults: 1 });
+    mockGetBookingResult.mockReturnValue({
+      ...booking('failed'),
+      itinerary: {
+        ...booking('failed').itinerary,
+        // return flight failed, return feeder bus booked (and was charged)
+        legs: [leg('o', 0, 'outbound'), leg('r', 1, 'return', 'failed'), leg('rb', 2, 'return')],
+      },
+    });
+    const { queryByTestId, queryByText, getByText } = render(<ConfirmationScreen />);
+    expect(queryByText(/Return not booked — you weren’t charged for it/)).toBeNull();
+    expect(queryByTestId('search-return-again')).toBeNull();
+    expect(getByText('Some legs could not be booked. Please review the details below.')).toBeTruthy();
   });
 });

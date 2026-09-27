@@ -22,9 +22,9 @@ describe('POST /auth/register', () => {
 
   it('rejects duplicate email with 409', async () => {
     await request(app).post('/auth/register')
-      .send({ email: 'dupe@example.com', password: 'pass' });
+      .send({ email: 'dupe@example.com', password: 'password123' });
     const res = await request(app).post('/auth/register')
-      .send({ email: 'dupe@example.com', password: 'pass' });
+      .send({ email: 'dupe@example.com', password: 'password123' });
     expect(res.status).toBe(409);
   });
 

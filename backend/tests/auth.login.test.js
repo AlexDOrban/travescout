@@ -32,7 +32,7 @@ describe('POST /auth/login', () => {
 
   it('returns 401 for unknown email', async () => {
     const res = await request(app).post('/auth/login')
-      .send({ email: 'nobody@example.com', password: 'pass' });
+      .send({ email: 'nobody@example.com', password: 'password123' });
     expect(res.status).toBe(401);
   });
 });

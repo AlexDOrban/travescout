@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getItem, setItem } from '../api/storage';
 
 export interface Currency {
   code: 'EUR' | 'USD' | 'GBP';
@@ -26,15 +27,42 @@ interface CurrencyContextValue {
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrency] = useState<Currency>(CURRENCIES[0]);
+  const [currency, setCurrencyState] = useState<Currency>(CURRENCIES[0]);
   const [rates, setRates] = useState<Record<string, number>>(FALLBACK_RATES);
 
   useEffect(() => {
+    // Guard against state updates after unmount (also silences act() noise in tests).
+    let cancelled = false;
+
     fetch('https://api.frankfurter.app/latest?from=EUR&to=USD,GBP')
-      .then(r => r.json())
-      .then(data => setRates({ EUR: 1, ...data.rates }))
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        // Only accept positive numeric rates; a changed/erroring payload used
+        // to replace the fallbacks with {EUR: 1}, showing USD/GBP at par.
+        const live: Record<string, number> = {};
+        for (const [code, rate] of Object.entries(data?.rates ?? {})) {
+          if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) live[code] = rate;
+        }
+        if (!cancelled) setRates({ ...FALLBACK_RATES, ...live, EUR: 1 });
+      })
       .catch(() => {}); // keep fallback on network error
+
+    getItem('currencyPreference')
+      .then(stored => {
+        const match = CURRENCIES.find(c => c.code === stored);
+        if (match && !cancelled) setCurrencyState(match);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  function setCurrency(c: Currency): void {
+    setCurrencyState(c);
+    setItem('currencyPreference', c.code).catch(() => {});
+  }
 
   function convert(amountEur: number): number {
     return Math.round(amountEur * (rates[currency.code] ?? 1) * 100) / 100;

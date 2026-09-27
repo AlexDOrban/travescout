@@ -5,6 +5,8 @@ export interface Passenger {
 
 export interface BookingRequest {
   trip: {
+    /** Offer id from search — the server re-quotes the authoritative price by this. */
+    id: string;
     provider: string;
     origin: string;
     destination: string;
@@ -15,6 +17,8 @@ export interface BookingRequest {
   };
   passengers: Passenger[];
   paymentMethodId: string;
+  /** Client-generated key so a retried request can't double-charge. */
+  idempotencyKey?: string;
 }
 
 export interface BookedTrip {
@@ -24,6 +28,7 @@ export interface BookedTrip {
   origin: string;
   destination: string;
   depart_at: string;
+  arrive_at?: string | null;
   return_at: string | null;
   price_eur: string; // backend returns string from PostgreSQL numeric
   currency_display: string;
@@ -32,6 +37,7 @@ export interface BookedTrip {
   created_at: string;
   itinerary_id?: string;
   leg_order?: number;
+  direction?: 'outbound' | 'return';
   ticket_qr_data?: string;
 }
 

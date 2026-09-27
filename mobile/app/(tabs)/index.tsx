@@ -1,187 +1,445 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { AppHeader } from '../../src/components/AppHeader';
-import { CityAutocomplete } from '../../src/components/CityAutocomplete';
-import { search } from '../../src/api/search';
-import { setSearchResults } from '../../src/stores/searchStore';
-import type { City } from '../../src/data/cities';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { useCurrency } from '../../src/contexts/CurrencyContext';
+import { Button } from '../../src/components/ui/Button';
+import { HeroStatusBar } from '../../src/components/HeroStatusBar';
+import { Card } from '../../src/components/ui/Card';
+import { CityPickerSheet } from '../../src/components/CityPickerSheet';
+import { CalendarSheet } from '../../src/components/CalendarSheet';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import { defaultReturnDate } from '../../src/utils/roundTrip';
+import { setSearchQuery } from '../../src/stores/searchStore';
+import { CITIES, type City } from '../../src/data/cities';
+import { countryFlag } from '../../src/data/cityMatch';
+import { addDays, formatDayLabel, todayISO } from '../../src/utils/format';
+import { addRecentSearch, getRecentSearches, type RecentSearch } from '../../src/utils/recentSearches';
+import { haptic } from '../../src/utils/haptics';
+import { radius } from '../../src/constants/theme';
 
-function formatDateInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+const byCode = (code: string) => CITIES.find(c => c.code === code)!;
+const POPULAR_ROUTES: [string, string][] = [
+  ['LON', 'PAR'], ['BER', 'PRG'], ['AMS', 'BRU'], ['VIE', 'BUD'], ['BCN', 'MAD'], ['MUC', 'ZRH'],
+];
+
+function greetingName(email?: string): string {
+  const local = email?.split('@')[0]?.split(/[._-]/)[0] ?? '';
+  return local ? local[0].toUpperCase() + local.slice(1) : 'traveller';
 }
 
 export default function SearchScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { currency, currencies, setCurrency } = useCurrency();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const userKey = user?.email ?? 'anon';
+
   const [fromCity, setFromCity] = useState<City | null>(null);
   const [toCity, setToCity] = useState<City | null>(null);
-  const [departDate, setDepartDate] = useState('');
-  const [returnDate, setReturnDate] = useState('');
+  const [departDate, setDepartDate] = useState(() => addDays(todayISO(), 1));
+  const [tripType, setTripType] = useState<'one_way' | 'return'>('one_way');
+  const [returnDate, setReturnDate] = useState(() => defaultReturnDate(addDays(todayISO(), 1)));
   const [adults, setAdults] = useState(1);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [picker, setPicker] = useState<'from' | 'to' | 'date' | 'return' | null>(null);
+  const [recent, setRecent] = useState<RecentSearch[]>([]);
+  const [spin] = useState(() => new Animated.Value(0));
 
-  async function handleSearch() {
-    setError('');
-    if (!fromCity) return setError('Select a departure city');
-    if (!toCity) return setError('Select a destination city');
-    if (!departDate) return setError('Enter a departure date');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(departDate))
-      return setError('Date must be YYYY-MM-DD');
-
-    setLoading(true);
-    try {
-      const data = await search({
-        from: fromCity.code,
-        to: toCity.code,
-        departDate,
-        returnDate: returnDate || undefined,
-        adults,
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getRecentSearches(userKey).then(r => {
+        if (!cancelled) setRecent(r);
       });
-      setSearchResults(data.results, data.meta);
-      router.push('/results');
-    } catch (e: any) {
-      setError(e.message || 'Search failed');
-    } finally {
-      setLoading(false);
-    }
+      return () => {
+        cancelled = true;
+      };
+    }, [userKey]),
+  );
+
+  function swap() {
+    haptic.light();
+    Animated.timing(spin, { toValue: 1, duration: 260, useNativeDriver: true }).start(() => spin.setValue(0));
+    setFromCity(toCity);
+    setToCity(fromCity);
+    setError('');
   }
 
+  function cycleCurrency() {
+    const idx = currencies.findIndex(c => c.code === currency.code);
+    setCurrency(currencies[(idx + 1) % currencies.length]);
+  }
+
+  // ret: a string restores a round trip, null restores a one-way search,
+  // undefined (popular routes) leaves the trip type alone.
+  function fill(from: City, to: City, date?: string, pax?: number, ret?: string | null) {
+    haptic.tap();
+    setFromCity(from);
+    setToCity(to);
+    // A recent search's date may have passed; keep the current date then.
+    const nextDepart = date && date >= todayISO() ? date : departDate;
+    setDepartDate(nextDepart);
+    if (pax) setAdults(pax);
+    if (ret === null) setTripType('one_way');
+    if (typeof ret === 'string') {
+      setTripType('return');
+      setReturnDate(ret >= nextDepart ? ret : defaultReturnDate(nextDepart));
+    }
+    setError('');
+  }
+
+  function handleSearch() {
+    setError('');
+    if (!fromCity) return setError('Choose where you’re leaving from');
+    if (!toCity) return setError('Choose your destination');
+    if (fromCity.code === toCity.code) return setError('Departure and destination must differ');
+    if (departDate < todayISO()) return setError('Departure date cannot be in the past');
+
+    const isReturn = tripType === 'return';
+    if (isReturn && returnDate < departDate) return setError('Return date must be on or after departure');
+
+    const query = { from: fromCity, to: toCity, departDate, adults, ...(isReturn ? { returnDate } : {}) };
+    void addRecentSearch(userKey, query);
+    setSearchQuery(query);
+    router.push('/results');
+  }
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const recentCities = [...new Map(recent.flatMap(r => [r.from, r.to]).map(c => [c.code, c])).values()];
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader />
-      <View style={styles.form}>
-        <CityAutocomplete
-          label="From"
-          value=""
-          onSelect={setFromCity}
-          testID="from-city"
-        />
-        <CityAutocomplete
-          label="To"
-          value=""
-          onSelect={setToCity}
-          testID="to-city"
-        />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <HeroStatusBar />
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+        <LinearGradient
+          colors={[colors.heroStart, colors.heroEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.hero, { paddingTop: insets.top + 16 }]}
+        >
+          <View style={styles.heroTop}>
+            <View style={styles.brandRow}>
+              <View style={[styles.logo, { backgroundColor: colors.accent }]}>
+                <Ionicons name="navigate" size={15} color={colors.onAccent} />
+              </View>
+              <Text style={[styles.brand, { color: colors.onHero }]}>TraveScout</Text>
+            </View>
+            <Pressable
+              testID="currency-pill"
+              onPress={cycleCurrency}
+              accessibilityRole="button"
+              accessibilityLabel={`Currency ${currency.code}, tap to change`}
+              style={styles.heroPill}
+            >
+              <Text style={styles.heroPillText}>{currency.symbol} {currency.code}</Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.hello, { color: colors.onHeroMuted }]}>Hi {greetingName(user?.email)} 👋</Text>
+          <Text style={[styles.heroTitle, { color: colors.onHero }]}>Where to next?</Text>
+          <Text style={[styles.heroSub, { color: colors.onHeroMuted }]}>Trains, buses and flights — compared in one search.</Text>
+        </LinearGradient>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Departure date
-        </Text>
-        <TextInput
-          testID="depart-date"
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            },
-          ]}
-          value={departDate}
-          onChangeText={t => setDepartDate(formatDateInput(t))}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textSecondary}
-        />
+        <Card style={styles.searchCard}>
+          <View style={styles.tripType}>
+            <SegmentedControl
+              segments={[
+                { value: 'one_way', label: 'One-way' },
+                { value: 'return', label: 'Return' },
+              ]}
+              value={tripType}
+              onChange={v => {
+                setTripType(v);
+                setError('');
+              }}
+              testIDPrefix="trip-type"
+            />
+          </View>
+          <View style={styles.odWrap}>
+            <Pressable
+              testID="from-city"
+              onPress={() => setPicker('from')}
+              accessibilityRole="button"
+              accessibilityLabel={fromCity ? `From ${fromCity.name}` : 'Choose departure city'}
+              style={styles.field}
+            >
+              <View style={[styles.dotHollow, { borderColor: colors.textSecondary }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>From</Text>
+                <Text numberOfLines={1} style={[styles.fieldValue, { color: fromCity ? colors.text : colors.textTertiary }]}>
+                  {fromCity ? `${fromCity.name}` : 'Leaving from'}
+                </Text>
+              </View>
+            </Pressable>
+            <View style={[styles.odDivider, { backgroundColor: colors.border }]} />
+            <Pressable
+              testID="to-city"
+              onPress={() => setPicker('to')}
+              accessibilityRole="button"
+              accessibilityLabel={toCity ? `To ${toCity.name}` : 'Choose destination city'}
+              style={styles.field}
+            >
+              <Ionicons name="location" size={16} color={colors.accent} style={{ width: 14, marginLeft: -1 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>To</Text>
+                <Text numberOfLines={1} style={[styles.fieldValue, { color: toCity ? colors.text : colors.textTertiary }]}>
+                  {toCity ? `${toCity.name}` : 'Going to'}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              testID="swap-cities"
+              onPress={swap}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Swap departure and destination"
+              style={[styles.swap, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Animated.View style={{ transform: [{ rotate }] }}>
+                <Ionicons name="swap-vertical" size={20} color={colors.accent} />
+              </Animated.View>
+            </Pressable>
+          </View>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Return date (optional)
-        </Text>
-        <TextInput
-          testID="return-date"
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            },
-          ]}
-          value={returnDate}
-          onChangeText={t => setReturnDate(formatDateInput(t))}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textSecondary}
-        />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Passengers</Text>
-        <View style={styles.stepper}>
-          <TouchableOpacity
-            testID="adults-minus"
-            onPress={() => setAdults(a => Math.max(1, a - 1))}
-            style={[styles.stepperBtn, { borderColor: colors.border }]}
-          >
-            <Text style={{ color: colors.text, fontSize: 20 }}>−</Text>
-          </TouchableOpacity>
-          <Text
-            testID="adults-count"
-            style={[styles.stepperValue, { color: colors.text }]}
-          >
-            {adults}
-          </Text>
-          <TouchableOpacity
-            testID="adults-plus"
-            onPress={() => setAdults(a => Math.min(9, a + 1))}
-            style={[styles.stepperBtn, { borderColor: colors.border }]}
-          >
-            <Text style={{ color: colors.text, fontSize: 20 }}>+</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomRow}>
+            <Pressable
+              testID="depart-date"
+              onPress={() => setPicker('date')}
+              accessibilityRole="button"
+              accessibilityLabel={`Departure date ${formatDayLabel(departDate)}`}
+              style={[styles.field, { flex: 1.3 }]}
+            >
+              <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+              <View>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Depart</Text>
+                <Text testID="depart-date-value" style={[styles.fieldValue, { color: colors.text }]}>
+                  {formatDayLabel(departDate)}
+                </Text>
+              </View>
+            </Pressable>
+            <View style={[styles.vDivider, { backgroundColor: colors.border }]} />
+            <View style={[styles.field, { flex: 1, justifyContent: 'space-between' }]}>
+              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
+              <Pressable
+                testID="adults-minus"
+                onPress={() => {
+                  haptic.tap();
+                  setAdults(a => Math.max(1, a - 1));
+                }}
+                disabled={adults <= 1}
+                hitSlop={6}
+                accessibilityLabel="Fewer passengers"
+                style={[styles.step, { borderColor: colors.border, opacity: adults <= 1 ? 0.4 : 1 }]}
+              >
+                <Ionicons name="remove" size={16} color={colors.text} />
+              </Pressable>
+              <Text testID="adults-count" accessibilityLabel={`${adults} adults`} style={[styles.stepValue, { color: colors.text }]}>
+                {adults}
+              </Text>
+              <Pressable
+                testID="adults-plus"
+                onPress={() => {
+                  haptic.tap();
+                  setAdults(a => Math.min(9, a + 1));
+                }}
+                disabled={adults >= 9}
+                hitSlop={6}
+                accessibilityLabel="More passengers"
+                style={[styles.step, { borderColor: colors.border, opacity: adults >= 9 ? 0.4 : 1 }]}
+              >
+                <Ionicons name="add" size={16} color={colors.text} />
+              </Pressable>
+            </View>
+          </View>
+
+          {tripType === 'return' && (
+            <>
+              <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+              <Pressable
+                testID="return-date"
+                onPress={() => setPicker('return')}
+                accessibilityRole="button"
+                accessibilityLabel={`Return date ${formatDayLabel(returnDate)}`}
+                style={styles.field}
+              >
+                <Ionicons name="return-down-back-outline" size={18} color={colors.textSecondary} />
+                <View>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Return</Text>
+                  <Text testID="return-date-value" style={[styles.fieldValue, { color: colors.text }]}>
+                    {formatDayLabel(returnDate)}
+                  </Text>
+                </View>
+              </Pressable>
+            </>
+          )}
+
+          {error ? (
+            <View style={[styles.errorBox, { backgroundColor: colors.error + '14' }]}>
+              <Ionicons name="alert-circle" size={16} color={colors.error} />
+              <Text testID="error" style={{ color: colors.error, flex: 1, fontSize: 13 }}>{error}</Text>
+            </View>
+          ) : null}
+
+          <Button testID="search-btn" title="Search" icon="search" onPress={handleSearch} style={{ marginTop: 14 }} />
+        </Card>
+
+        {recent.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent searches</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }}>
+              {recent.map(r => (
+                <Card
+                  key={`${r.from.code}-${r.to.code}`}
+                  testID={`recent-${r.from.code}-${r.to.code}`}
+                  onPress={() => fill(r.from, r.to, r.departDate, r.adults, r.returnDate ?? null)}
+                  style={styles.recentCard}
+                  accessibilityLabel={`Search again ${r.from.name} to ${r.to.name}`}
+                >
+                  <View style={styles.recentRoute}>
+                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                    <Text numberOfLines={1} style={[styles.recentText, { color: colors.text }]}>
+                      {r.from.name} → {r.to.name}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                    {formatDayLabel(r.departDate)}
+                    {r.returnDate ? ` – ${formatDayLabel(r.returnDate)}` : ''} · {r.adults} {r.adults === 1 ? 'adult' : 'adults'}
+                  </Text>
+                </Card>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular routes</Text>
+          <View style={styles.popularGrid}>
+            {POPULAR_ROUTES.map(([a, b]) => {
+              const from = byCode(a);
+              const to = byCode(b);
+              return (
+                <Card
+                  key={`${a}-${b}`}
+                  testID={`popular-${a}-${b}`}
+                  onPress={() => fill(from, to)}
+                  style={styles.popularCard}
+                  accessibilityLabel={`${from.name} to ${to.name}`}
+                >
+                  <Text style={styles.flags}>{countryFlag(from.country)} → {countryFlag(to.country)}</Text>
+                  <Text numberOfLines={1} style={[styles.popularText, { color: colors.text }]}>{from.name}</Text>
+                  <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: 13 }}>to {to.name}</Text>
+                </Card>
+              );
+            })}
+          </View>
         </View>
 
-        {error ? (
-          <Text testID="error" style={{ color: colors.error, marginTop: 8 }}>
-            {error}
-          </Text>
-        ) : null}
+        <View style={styles.usps}>
+          {[
+            ['pricetag-outline', 'Compare every mode'],
+            ['shield-checkmark-outline', 'Secure checkout'],
+            ['qr-code-outline', 'Tickets in one place'],
+          ].map(([icon, label]) => (
+            <View key={label} style={styles.usp}>
+              <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={18} color={colors.accent} />
+              <Text style={[styles.uspText, { color: colors.textSecondary }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
 
-        <TouchableOpacity
-          testID="search-btn"
-          style={[styles.button, { backgroundColor: colors.accent }]}
-          onPress={handleSearch}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Search</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      {/* One sheet for both ends: iOS can't dismiss one Modal and present
+          another in the same frame, so From → To flows by switching mode. */}
+      <CityPickerSheet
+        visible={picker === 'from' || picker === 'to'}
+        title={picker === 'to' ? 'Going to' : 'Leaving from'}
+        testID={picker === 'to' ? 'to-picker' : 'from-picker'}
+        recent={recentCities}
+        excludeCode={picker === 'to' ? fromCity?.code : toCity?.code}
+        onClose={() => setPicker(null)}
+        onSelect={c => {
+          setError('');
+          if (picker === 'to') {
+            setToCity(c);
+            setPicker(null);
+          } else {
+            setFromCity(c);
+            // Flow straight on to the destination like Omio/Trainline.
+            setPicker(toCity ? null : 'to');
+          }
+        }}
+      />
+      {/* One sheet for both dates (same iOS Modal constraint); the key
+          remounts it so the month cursor starts on the date being edited. */}
+      <CalendarSheet
+        key={picker === 'return' ? 'return' : 'depart'}
+        visible={picker === 'date' || picker === 'return'}
+        testID={picker === 'return' ? 'return-calendar' : 'calendar'}
+        title={picker === 'return' ? 'Return date' : 'Departure date'}
+        value={picker === 'return' ? returnDate : departDate}
+        minDate={picker === 'return' ? departDate : undefined}
+        onClose={() => setPicker(null)}
+        onSelect={iso => {
+          if (picker === 'return') {
+            setReturnDate(iso);
+          } else {
+            setDepartDate(iso);
+            if (returnDate < iso) setReturnDate(defaultReturnDate(iso));
+          }
+          setError('');
+          setPicker(null);
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  form: { padding: 16, gap: 12 },
-  label: { fontSize: 12, fontWeight: '600' },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  stepperBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  hero: { paddingHorizontal: 20, paddingBottom: 72 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logo: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  brand: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  heroPill: { backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  heroPillText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  hello: { fontSize: 15, fontWeight: '500' },
+  heroTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },
+  heroSub: { fontSize: 15, marginTop: 6, lineHeight: 21 },
+  searchCard: { marginHorizontal: 16, marginTop: -52, padding: 8, paddingBottom: 14 },
+  tripType: { paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8 },
+  odWrap: { position: 'relative' },
+  field: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingVertical: 10, minHeight: 56 },
+  fieldLabel: { fontSize: 12, fontWeight: '600' },
+  fieldValue: { fontSize: 17, fontWeight: '700', marginTop: 1 },
+  dotHollow: { width: 12, height: 12, borderRadius: 6, borderWidth: 2.5 },
+  odDivider: { height: StyleSheet.hairlineWidth, marginLeft: 36, marginRight: 64 },
+  swap: {
+    position: 'absolute', right: 10, top: '50%', marginTop: -21,
+    width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  stepperValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    minWidth: 20,
-    textAlign: 'center',
-  },
-  button: { borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 10 },
+  bottomRow: { flexDirection: 'row', alignItems: 'center' },
+  vDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 8 },
+  step: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { fontSize: 17, fontWeight: '700', minWidth: 16, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.sm, padding: 10, marginHorizontal: 8, marginTop: 8 },
+  section: { marginTop: 28 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12, paddingHorizontal: 16, letterSpacing: -0.2 },
+  recentCard: { width: 210, padding: 14 },
+  recentRoute: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  recentText: { fontSize: 15, fontWeight: '700', flex: 1 },
+  popularGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16 },
+  popularCard: { width: '48%', flexGrow: 1, flexBasis: '45%', padding: 14 },
+  flags: { fontSize: 18, marginBottom: 8 },
+  popularText: { fontSize: 16, fontWeight: '700' },
+  usps: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 28, paddingHorizontal: 16 },
+  usp: { alignItems: 'center', gap: 6, flex: 1 },
+  uspText: { fontSize: 12, textAlign: 'center', fontWeight: '500' },
 });

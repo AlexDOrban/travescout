@@ -1,5 +1,6 @@
 const { fanOut } = require('../providers/index');
 const { rankTrips } = require('../ranker');
+const offerStore = require('./offerStore');
 
 /**
  * @param {Object} params - Validated search params
@@ -8,6 +9,10 @@ const { rankTrips } = require('../ranker');
 async function search(params) {
   const { trips, providersFailed } = await fanOut(params);
   const results = rankTrips(trips);
+
+  // Record the authoritative price of every offer we hand out, so booking can
+  // re-quote by id instead of trusting the client.
+  offerStore.remember(results);
 
   return {
     results,

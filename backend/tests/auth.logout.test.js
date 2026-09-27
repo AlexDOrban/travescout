@@ -8,7 +8,7 @@ let refreshToken;
 
 beforeAll(async () => {
   const res = await request(app).post('/auth/register')
-    .send({ email: 'logout@example.com', password: 'pass' });
+    .send({ email: 'logout@example.com', password: 'password123' });
   refreshToken = res.body.refreshToken;
 });
 

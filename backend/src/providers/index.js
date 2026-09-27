@@ -27,7 +27,13 @@ async function fanOut(params) {
   results.forEach((result, i) => {
     const { name, normalizer } = PROVIDERS[i];
     if (result.status === 'fulfilled') {
-      trips.push(...normalizer.normalize(result.value));
+      // One malformed offer must not turn the whole search into a 500.
+      try {
+        trips.push(...normalizer.normalize(result.value));
+      } catch (e) {
+        console.error(`[search] Normalizer ${name} failed:`, e);
+        providersFailed.push(name);
+      }
     } else {
       console.error(`[search] Provider ${name} failed:`, result.reason);
       providersFailed.push(name);

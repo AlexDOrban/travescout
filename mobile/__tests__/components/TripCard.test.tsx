@@ -1,22 +1,17 @@
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { TripCard } from '../../src/components/TripCard';
+import { RankedTrip } from '../../src/types/trip';
+import { formatTime } from '../../src/utils/format';
+
 jest.mock('../../src/contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    colors: {
-      text: '#fff', textSecondary: '#aaa', card: '#111',
-      border: '#333', background: '#000', accent: '#66f',
-      cheapest: '#0f0', error: '#f00',
-    },
-  }),
+  useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
 jest.mock('../../src/contexts/CurrencyContext', () => ({
   useCurrency: () => ({
     format: (n: number) => `€${n.toFixed(2)}`,
   }),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { TripCard } from '../../src/components/TripCard';
-import { RankedTrip } from '../../src/types/trip';
 
 const MOCK_TRIP: RankedTrip = {
   id: 'amadeus:1',
@@ -35,49 +30,63 @@ const MOCK_TRIP: RankedTrip = {
 };
 
 describe('TripCard', () => {
-  it('renders route and price', () => {
-    const { getByText } = render(
-      <TripCard trip={MOCK_TRIP} onPress={jest.fn()} />,
-    );
-    expect(getByText('LON → PAR')).toBeTruthy();
+  it('renders times, codes, duration and price', () => {
+    const { getByText } = render(<TripCard trip={MOCK_TRIP} onPress={jest.fn()} />);
+    expect(getByText(formatTime(MOCK_TRIP.departAt))).toBeTruthy();
+    expect(getByText(formatTime(MOCK_TRIP.arriveAt))).toBeTruthy();
+    expect(getByText('LON')).toBeTruthy();
+    expect(getByText('PAR')).toBeTruthy();
+    expect(getByText('2h 15m')).toBeTruthy();
     expect(getByText('€42.50')).toBeTruthy();
   });
 
-  it('renders tag badges', () => {
+  it('renders friendly tag badges', () => {
     const { getByText } = render(
-      <TripCard trip={MOCK_TRIP} onPress={jest.fn()} />,
+      <TripCard trip={{ ...MOCK_TRIP, tags: ['CHEAPEST', 'BALANCED'] }} onPress={jest.fn()} />,
     );
-    expect(getByText('CHEAPEST')).toBeTruthy();
+    expect(getByText('Cheapest')).toBeTruthy();
+    expect(getByText('Best value')).toBeTruthy();
   });
 
-  it('renders transport icon for flights', () => {
-    const { getByText } = render(
-      <TripCard trip={MOCK_TRIP} onPress={jest.fn()} />,
-    );
-    expect(getByText('✈️')).toBeTruthy();
+  it('shows the operator name rather than the booking system', () => {
+    const { getByText } = render(<TripCard trip={MOCK_TRIP} onPress={jest.fn()} />);
+    expect(getByText('Air partners')).toBeTruthy();
   });
 
   it('calls onPress when tapped', () => {
     const onPress = jest.fn();
-    const { getByTestId } = render(
-      <TripCard trip={MOCK_TRIP} onPress={onPress} testID="card" />,
-    );
+    const { getByTestId } = render(<TripCard trip={MOCK_TRIP} onPress={onPress} testID="card" />);
     fireEvent.press(getByTestId('card'));
     expect(onPress).toHaveBeenCalled();
   });
 
   it('shows Direct for 0 stops', () => {
-    const { getByText } = render(
-      <TripCard trip={MOCK_TRIP} onPress={jest.fn()} />,
-    );
-    expect(getByText(/Direct/)).toBeTruthy();
+    const { getByText } = render(<TripCard trip={MOCK_TRIP} onPress={jest.fn()} />);
+    expect(getByText('Direct')).toBeTruthy();
   });
 
-  it('shows stop count for non-direct trips', () => {
-    const trip = { ...MOCK_TRIP, stops: 2 };
-    const { getByText } = render(
-      <TripCard trip={trip} onPress={jest.fn()} />,
+  it('pluralises stops correctly', () => {
+    const one = render(<TripCard trip={{ ...MOCK_TRIP, stops: 1 }} onPress={jest.fn()} />);
+    expect(one.getByText('1 stop')).toBeTruthy();
+    const two = render(<TripCard trip={{ ...MOCK_TRIP, stops: 2 }} onPress={jest.fn()} />);
+    expect(two.getByText('2 stops')).toBeTruthy();
+  });
+
+  it('flags an overnight arrival with +1', () => {
+    const depart = new Date(2030, 0, 1, 22, 0).toISOString();
+    const arrive = new Date(2030, 0, 2, 6, 30).toISOString();
+    const { getByTestId } = render(
+      <TripCard trip={{ ...MOCK_TRIP, departAt: depart, arriveAt: arrive, durationMins: 510 }} onPress={jest.fn()} />,
     );
-    expect(getByText(/2 stops/)).toBeTruthy();
+    expect(getByTestId('plus-days').props.children).toEqual(['+', 1]);
+  });
+
+  it('has no +1 badge for a same-day arrival', () => {
+    const depart = new Date(2030, 0, 1, 8, 0).toISOString();
+    const arrive = new Date(2030, 0, 1, 10, 0).toISOString();
+    const { queryByTestId } = render(
+      <TripCard trip={{ ...MOCK_TRIP, departAt: depart, arriveAt: arrive }} onPress={jest.fn()} />,
+    );
+    expect(queryByTestId('plus-days')).toBeNull();
   });
 });

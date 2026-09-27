@@ -22,12 +22,13 @@ describe('rankTrips', () => {
     expect(rankTrips([])).toEqual([]);
   });
 
-  it('returns a single trip with all three tags', () => {
+  it('returns a single trip tagged CHEAPEST and FASTEST but not BALANCED', () => {
     const trip = makeTrip({ id: 'test:1' });
     const [result] = rankTrips([trip]);
     expect(result.tags).toContain('CHEAPEST');
     expect(result.tags).toContain('FASTEST');
-    expect(result.tags).toContain('BALANCED');
+    // BALANCED means "best third option" — meaningless with fewer than 3 trips.
+    expect(result.tags).not.toContain('BALANCED');
   });
 
   it('assigns CHEAPEST to the lowest-price trip', () => {

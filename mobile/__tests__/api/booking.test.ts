@@ -1,9 +1,9 @@
+import { book, getTrips } from '../../src/api/booking';
+import { api } from '../../src/api/client';
+
 jest.mock('../../src/api/client', () => ({
   api: { post: jest.fn(), get: jest.fn() },
 }));
-
-import { book, getTrips } from '../../src/api/booking';
-import { api } from '../../src/api/client';
 
 const mockPost = api.post as jest.Mock;
 const mockGet = api.get as jest.Mock;
@@ -14,6 +14,7 @@ describe('book', () => {
   it('calls POST /book with booking request', async () => {
     const request = {
       trip: {
+        id: 'flixbus:leg-1',
         provider: 'flixbus',
         origin: 'LON',
         destination: 'PAR',

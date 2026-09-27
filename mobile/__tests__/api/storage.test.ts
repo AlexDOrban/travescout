@@ -1,4 +1,7 @@
 // Mock Platform before importing storage
+import * as SecureStore from 'expo-secure-store';
+import { setItem, getItem, deleteItem } from '../../src/api/storage';
+
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
 }));
@@ -14,9 +17,6 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn().mockResolvedValue('stored-value'),
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),
 }));
-
-import * as SecureStore from 'expo-secure-store';
-import { setItem, getItem, deleteItem } from '../../src/api/storage';
 
 describe('storage (iOS)', () => {
   it('setItem calls SecureStore.setItemAsync', async () => {

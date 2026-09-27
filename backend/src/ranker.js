@@ -4,6 +4,9 @@
  * @returns {import('./types/trip').RankedTrip[]}
  */
 function rankTrips(trips) {
+  // Drop malformed offers (missing/NaN price or duration) so one bad offer
+  // can't poison maxPrice/scores and hand every trip a NaN score.
+  trips = trips.filter(t => Number.isFinite(t.priceEur) && Number.isFinite(t.durationMins));
   if (trips.length === 0) return [];
 
   const maxPrice = Math.max(...trips.map(t => t.priceEur));
@@ -23,12 +26,14 @@ function rankTrips(trips) {
   const cheapest = [...scored].sort((a, b) => a.priceEur - b.priceEur)[0];
   const fastest = [...scored].sort((a, b) => a.durationMins - b.durationMins)[0];
   const tagged = new Set([cheapest.id, fastest.id]);
-  const balanced = scored.find(t => !tagged.has(t.id)) || scored[0];
+  // With fewer than 3 distinct options there is no meaningful third pick;
+  // don't stack BALANCED onto an already-tagged trip.
+  const balanced = scored.length >= 3 ? scored.find(t => !tagged.has(t.id)) : null;
 
   scored.forEach(trip => {
     if (trip.id === cheapest.id) trip.tags.push('CHEAPEST');
     if (trip.id === fastest.id) trip.tags.push('FASTEST');
-    if (trip.id === balanced.id) trip.tags.push('BALANCED');
+    if (balanced && trip.id === balanced.id) trip.tags.push('BALANCED');
   });
 
   return scored;

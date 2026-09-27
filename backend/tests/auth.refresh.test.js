@@ -12,7 +12,7 @@ afterAll(async () => {
 
 async function mintRefreshToken() {
   const email = `refresh-${Date.now()}@example.com`;
-  const res = await request(app).post('/auth/register').send({ email, password: 'pass' });
+  const res = await request(app).post('/auth/register').send({ email, password: 'password123' });
   return res.body.refreshToken;
 }
 

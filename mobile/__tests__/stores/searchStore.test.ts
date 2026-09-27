@@ -4,6 +4,8 @@ import {
   getSearchMeta,
   getResultById,
   clearSearchResults,
+  setSelectedOutbound,
+  getSelectedOutbound,
 } from '../../src/stores/searchStore';
 import { RankedTrip, SearchMeta } from '../../src/types/trip';
 
@@ -84,5 +86,39 @@ describe('searchStore', () => {
       clearSearchResults();
       expect(getSearchMeta()).toBeNull();
     });
+  });
+});
+
+describe('search query', () => {
+  it('stores the query and clears it with the results', () => {
+    const { setSearchQuery, getSearchQuery } = jest.requireActual('../../src/stores/searchStore');
+    const q = { from: { name: 'London', code: 'LON', country: 'UK' }, to: { name: 'Paris', code: 'PAR', country: 'FR' }, departDate: '2030-05-01', adults: 2 };
+    setSearchQuery(q);
+    expect(getSearchQuery()).toEqual(q);
+    clearSearchResults();
+    expect(getSearchQuery()).toBeNull();
+  });
+});
+
+describe('searchStore — return leg', () => {
+  const r = (id: string) => ({ id } as RankedTrip);
+
+  it('keeps outbound and return results apart', () => {
+    setSearchResults([r('out-1')], makeMeta({ from: 'LON' }));
+    setSearchResults([r('ret-1')], makeMeta({ from: 'PAR' }), 'return');
+    expect(getSearchResults().map(t => t.id)).toEqual(['out-1']);
+    expect(getSearchResults('return').map(t => t.id)).toEqual(['ret-1']);
+    expect(getSearchMeta('return')!.from).toBe('PAR');
+    expect(getResultById('ret-1', 'return')).toBeDefined();
+    expect(getResultById('ret-1')).toBeUndefined();
+  });
+
+  it('remembers the selected outbound until cleared', () => {
+    setSearchResults([r('ret-1')], makeMeta(), 'return');
+    setSelectedOutbound(r('out-1'));
+    expect(getSelectedOutbound()!.id).toBe('out-1');
+    clearSearchResults();
+    expect(getSelectedOutbound()).toBeNull();
+    expect(getSearchResults('return')).toEqual([]);
   });
 });

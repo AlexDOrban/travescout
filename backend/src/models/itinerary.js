@@ -1,11 +1,14 @@
 const db = require('../db');
 
-async function create({ userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status }) {
-  const result = await db.query(
-    `INSERT INTO itineraries (user_id, booking_ref, origin, destination, depart_at, arrive_at, total_price_eur, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+async function create(
+  { userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status, tripType = 'one_way' },
+  executor = db
+) {
+  const result = await executor.query(
+    `INSERT INTO itineraries (user_id, booking_ref, origin, destination, depart_at, arrive_at, total_price_eur, status, trip_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status]
+    [userId, bookingRef, origin, destination, departAt, arriveAt, totalPriceEur, status, tripType]
   );
   return result.rows[0];
 }
@@ -21,6 +24,7 @@ async function findByUserId(userId) {
            'origin', t.origin,
            'destination', t.destination,
            'depart_at', t.depart_at,
+           'arrive_at', t.arrive_at,
            'return_at', t.return_at,
            'price_eur', t.price_eur,
            'currency_display', t.currency_display,
@@ -28,6 +32,7 @@ async function findByUserId(userId) {
            'raw_ticket_url', t.raw_ticket_url,
            'ticket_qr_data', t.ticket_qr_data,
            'leg_order', t.leg_order,
+           'direction', t.direction,
            'itinerary_id', t.itinerary_id,
            'created_at', t.created_at
          ) ORDER BY t.leg_order

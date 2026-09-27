@@ -1,5 +1,11 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { useAuth } from '../../src/contexts/AuthContext';
+import LoginScreen from '../../app/(auth)/login';
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
+  useFocusEffect: jest.fn(),
   useRouter: () => ({ replace: jest.fn() }),
 }));
 
@@ -15,11 +21,6 @@ jest.mock('../../src/contexts/ThemeContext', () => ({
     },
   }),
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { useAuth } from '../../src/contexts/AuthContext';
-import LoginScreen from '../../app/(auth)/login';
 
 const mockUseAuth = useAuth as jest.Mock;
 const mockLogin = jest.fn();
