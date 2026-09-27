@@ -14,7 +14,9 @@ import { EmptyState } from '../src/components/ui/EmptyState';
 import { PROVIDER_TRANSPORT, providerName } from '../src/constants/transport';
 import { getBookingResult, clearCheckout } from '../src/stores/checkoutStore';
 import { formatDateTime } from '../src/utils/format';
-import type { ItineraryBookingResponse } from '../src/types/itinerary';
+import type { Direction, ItineraryBookingResponse } from '../src/types/itinerary';
+import { getSearchQuery, setSearchQuery } from '../src/stores/searchStore';
+import { legsByDirection } from '../src/utils/itinerary';
 import type { BookedTrip } from '../src/types/booking';
 
 export default function ConfirmationScreen() {
@@ -46,6 +48,55 @@ export default function ConfirmationScreen() {
   const total = itineraryBooking ? parseFloat(itineraryBooking.itinerary.total_price_eur) : parseFloat(legs[0].price_eur);
   const departAt = itineraryBooking ? itineraryBooking.itinerary.depart_at : legs[0].depart_at;
   const singleQr = !itineraryBooking ? legs[0].ticket_qr_data : undefined;
+  const roundTrip = itineraryBooking?.itinerary.trip_type === 'round_trip';
+  const groups = legsByDirection(legs);
+  const failedIn = (dir: Direction) => groups[dir].some(l => l.status !== 'confirmed');
+
+  // Re-search just the direction that didn't book, as a one-way.
+  function searchAgain(dir: Direction) {
+    const q = getSearchQuery();
+    clearCheckout();
+    if (!q) {
+      router.replace('/(tabs)');
+      return;
+    }
+    setSearchQuery(
+      dir === 'return' && q.returnDate
+        ? { from: q.to, to: q.from, departDate: q.returnDate, adults: q.adults }
+        : { from: q.from, to: q.to, departDate: q.departDate, adults: q.adults },
+    );
+    router.replace('/results');
+  }
+
+  function renderLeg(leg: BookedTrip, index: number) {
+    const legConfirmed = leg.status === 'confirmed';
+    const failure = itineraryBooking!.failedLegs?.find(f => f.legOrder === (leg.leg_order ?? index));
+    return (
+      <View key={leg.id} style={[styles.legRow, { borderTopColor: colors.border }]}>
+        <ModeBadge mode={PROVIDER_TRANSPORT[leg.provider] ?? 'bus'} size={30} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.legRoute, { color: colors.text }]}>
+            {leg.origin} → {leg.destination}
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+            {legConfirmed
+              ? `${providerName(leg.provider)} · ${leg.booking_ref}`
+              : `${providerName(leg.provider)} · not booked${failure ? ` — ${failure.error}` : ''}`}
+          </Text>
+          {!legConfirmed ? (
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+              You were not charged for this leg.
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons
+          name={legConfirmed ? 'checkmark-circle' : 'close-circle'}
+          size={20}
+          color={legConfirmed ? colors.cheapest : colors.error}
+        />
+      </View>
+    );
+  }
 
   const handleViewTrips = () => {
     clearCheckout();
@@ -88,7 +139,11 @@ export default function ConfirmationScreen() {
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {partiallyFailed
-              ? 'Some legs could not be booked. Please review the details below.'
+              ? roundTrip && failedIn('return') && !failedIn('outbound')
+                ? 'Your outbound is booked. Return not booked — you weren’t charged for it.'
+                : roundTrip && failedIn('outbound') && !failedIn('return')
+                  ? 'Your return is booked. Outbound not booked — you weren’t charged for it.'
+                  : 'Some legs could not be booked. Please review the details below.'
               : `Tickets sent to your email and saved in My Trips.`}
           </Text>
         </View>
@@ -107,7 +162,7 @@ export default function ConfirmationScreen() {
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <Text style={[styles.route, { color: colors.text }]}>{origin} → {destination}</Text>
+          <Text style={[styles.route, { color: colors.text }]}>{origin} {roundTrip ? '⇄' : '→'} {destination}</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14 }}>{formatDateTime(departAt)}</Text>
           <Text style={[styles.price, { color: colors.text }]}>{format(total)}</Text>
 
@@ -118,40 +173,31 @@ export default function ConfirmationScreen() {
             </View>
           ) : null}
 
-          {itineraryBooking && (
+          {itineraryBooking && !roundTrip && (
             <View style={{ marginTop: 8 }}>
               <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 4 }]}>LEGS</Text>
-              {legs.map((leg, index) => {
-                const legConfirmed = leg.status === 'confirmed';
-                const failure = itineraryBooking.failedLegs?.find(f => f.legOrder === index);
-                return (
-                  <View key={leg.id} style={[styles.legRow, { borderTopColor: colors.border }]}>
-                    <ModeBadge mode={PROVIDER_TRANSPORT[leg.provider] ?? 'bus'} size={30} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.legRoute, { color: colors.text }]}>
-                        {leg.origin} → {leg.destination}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                        {legConfirmed
-                          ? `${providerName(leg.provider)} · ${leg.booking_ref}`
-                          : `${providerName(leg.provider)} · not booked${failure ? ` — ${failure.error}` : ''}`}
-                      </Text>
-                      {!legConfirmed ? (
-                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                          You were not charged for this leg.
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Ionicons
-                      name={legConfirmed ? 'checkmark-circle' : 'close-circle'}
-                      size={20}
-                      color={legConfirmed ? colors.cheapest : colors.error}
-                    />
-                  </View>
-                );
-              })}
+              {legs.map(renderLeg)}
             </View>
           )}
+          {roundTrip &&
+            (['outbound', 'return'] as Direction[]).map(dir => (
+              <View key={dir} testID={`confirm-section-${dir}`} style={{ marginTop: 8 }}>
+                <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 4 }]}>
+                  {dir === 'outbound' ? 'OUTBOUND' : 'RETURN'}
+                </Text>
+                {groups[dir].map(l => renderLeg(l, legs.indexOf(l)))}
+                {failedIn(dir) && (
+                  <Button
+                    testID={`search-${dir}-again`}
+                    title={`Search ${dir} again`}
+                    icon="search"
+                    variant="secondary"
+                    onPress={() => searchAgain(dir)}
+                    style={{ marginTop: 8 }}
+                  />
+                )}
+              </View>
+            ))}
         </Card>
 
         <RouteMapMenu
