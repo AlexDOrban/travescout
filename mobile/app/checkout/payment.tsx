@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { itineraryEndpoints } from '../../src/utils/itinerary';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
 import { Card } from '../../src/components/ui/Card';
 import { BottomBar } from '../../src/components/ui/BottomBar';
 import { EmptyState } from '../../src/components/ui/EmptyState';
@@ -43,6 +44,7 @@ export default function PaymentScreen() {
   const trip = getCheckoutTrip();
   const passengers = getPassengers();
   const itinerary = getCheckoutItinerary();
+  const flow = checkoutFlow(itinerary);
   const searchMeta = getSearchMeta();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -70,8 +72,10 @@ export default function PaymentScreen() {
   const totalEur = itinerary ? itinerary.totalPriceEur : trip!.priceEur;
   const brand = cardBrand(cardNumber);
   const holder = passengers[0]?.name || 'CARDHOLDER';
-  const routeLabel = itinerary
-    ? `${itinerary.legs[0].origin} → ${itinerary.legs[itinerary.legs.length - 1].destination}`
+  const ends = itinerary ? itineraryEndpoints(itinerary) : null;
+  const roundTrip = itinerary?.tripType === 'round_trip';
+  const routeLabel = ends
+    ? `${ends.origin} ${roundTrip ? '⇄' : '→'} ${ends.destination}`
     : `${trip!.origin} → ${trip!.destination}`;
 
   function validateExpiryAndCvc(): string {
@@ -114,8 +118,9 @@ export default function PaymentScreen() {
           legs: itinerary.legs,
           passengers,
           paymentMethodId,
-          origin: searchMeta?.from ?? itinerary.legs[0].origin,
-          destination: searchMeta?.to ?? itinerary.legs[itinerary.legs.length - 1].destination,
+          origin: searchMeta?.from ?? ends!.origin,
+          destination: searchMeta?.to ?? ends!.destination,
+          ...(roundTrip ? { tripType: 'round_trip' as const } : {}),
           idempotencyKey,
         });
       } else {
@@ -165,7 +170,7 @@ export default function PaymentScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <AppHeader title="Payment" subtitle={routeLabel} showBack />
-      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 4 : 3} colors={colors} />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Pay')} colors={colors} />
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {/* Live card preview */}
         <LinearGradient colors={[colors.heroStart, colors.heroEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>

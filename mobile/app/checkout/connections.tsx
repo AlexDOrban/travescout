@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
 import { ModeBadge } from '../../src/components/ModeBadge';
 import { BottomBar } from '../../src/components/ui/BottomBar';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,12 +30,28 @@ import {
 } from '../../src/utils/connections';
 import type { Leg } from '../../src/types/itinerary';
 
+function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {
+  return Math.round(
+    (new Date(mainDepartAt).getTime() - new Date(connectionArriveAt).getTime()) /
+      (1000 * 60),
+  );
+}
+
+function minutesAfter(mainArriveAt: string, connectionDepartAt: string): number {
+  return Math.round(
+    (new Date(connectionDepartAt).getTime() - new Date(mainArriveAt).getTime()) /
+      (1000 * 60),
+  );
+}
+
 export default function ConnectionsScreen() {
   const { colors } = useTheme();
   const { format } = useCurrency();
   const router = useRouter();
 
   const itinerary = getCheckoutItinerary();
+
+  const flow = checkoutFlow(itinerary);
   const searchMeta = getSearchMeta();
   // Never derive the main leg from legs[0]: once connections are added the
   // first leg is the departure feeder, not the main leg.
@@ -139,20 +155,6 @@ export default function ConnectionsScreen() {
     router.push('/checkout/transfer');
   }
 
-  function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {
-    return Math.round(
-      (new Date(mainDepartAt).getTime() - new Date(connectionArriveAt).getTime()) /
-        (1000 * 60),
-    );
-  }
-
-  function minutesAfter(mainArriveAt: string, connectionDepartAt: string): number {
-    return Math.round(
-      (new Date(connectionDepartAt).getTime() - new Date(mainArriveAt).getTime()) /
-        (1000 * 60),
-    );
-  }
-
   if (!mainLeg) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
@@ -179,7 +181,7 @@ export default function ConnectionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
     <ScrollView style={styles.container}>
       <AppHeader title="Add Connections" showBack />
-      <Stepper steps={checkoutSteps(true)} current={0} colors={colors} />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Connections')} colors={colors} />
       <View style={styles.content}>
 
         {/* Selected main leg summary */}

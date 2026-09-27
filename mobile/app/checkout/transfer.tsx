@@ -13,7 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { itineraryEndpoints } from '../../src/utils/itinerary';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
 import { Card } from '../../src/components/ui/Card';
 import { BottomBar } from '../../src/components/ui/BottomBar';
 import { EmptyState } from '../../src/components/ui/EmptyState';
@@ -34,6 +35,7 @@ export default function TransferScreen() {
   const router = useRouter();
   const trip = getCheckoutTrip();
   const itinerary = getCheckoutItinerary();
+  const flow = checkoutFlow(itinerary);
   // Seed from the store so backing into this step keeps what was typed.
   const saved = getCheckoutTransfer();
   const [startAddress, setStartAddress] = useState(saved.startAddress);
@@ -48,10 +50,10 @@ export default function TransferScreen() {
     );
   }
 
-  const routeOrigin = trip ? trip.origin : itinerary!.legs[0].originName;
-  const routeDestination = trip
-    ? trip.destination
-    : itinerary!.legs[itinerary!.legs.length - 1].destinationName;
+  const ends = itinerary ? itineraryEndpoints(itinerary) : null;
+  const routeOrigin = trip ? trip.origin : ends!.originName;
+  const routeDestination = trip ? trip.destination : ends!.destinationName;
+  const arrow = itinerary?.tripType === 'round_trip' ? '⇄' : '→';
 
   function handleContinue() {
     setCheckoutTransfer({
@@ -72,8 +74,8 @@ export default function TransferScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <AppHeader title="Getting there" subtitle={`${routeOrigin} → ${routeDestination}`} showBack />
-      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 1 : 0} colors={colors} />
+      <AppHeader title="Getting there" subtitle={`${routeOrigin} ${arrow} ${routeDestination}`} showBack />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Getting there')} colors={colors} />
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={[styles.intro, { backgroundColor: colors.accentSoft }]}>
           <Ionicons name="navigate-circle" size={22} color={colors.accent} />

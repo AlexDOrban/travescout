@@ -13,7 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { itineraryEndpoints } from '../../src/utils/itinerary';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
 import { Card } from '../../src/components/ui/Card';
 import { BottomBar } from '../../src/components/ui/BottomBar';
 import { EmptyState } from '../../src/components/ui/EmptyState';
@@ -34,6 +35,7 @@ export default function PassengersScreen() {
   const router = useRouter();
   const trip = getCheckoutTrip();
   const itinerary = getCheckoutItinerary();
+  const flow = checkoutFlow(itinerary);
   const adults = getCheckoutAdults();
   const [forms, setForms] = useState<Passenger[]>(() => {
     // Returning to this step keeps what was entered; otherwise the lead
@@ -53,10 +55,10 @@ export default function PassengersScreen() {
     );
   }
 
-  const routeOrigin = trip ? trip.origin : itinerary!.legs[0].originName;
-  const routeDestination = trip
-    ? trip.destination
-    : itinerary!.legs[itinerary!.legs.length - 1].destinationName;
+  const ends = itinerary ? itineraryEndpoints(itinerary) : null;
+  const routeOrigin = trip ? trip.origin : ends!.originName;
+  const routeDestination = trip ? trip.destination : ends!.destinationName;
+  const arrow = itinerary?.tripType === 'round_trip' ? '⇄' : '→';
 
   function updateForm(index: number, field: keyof Passenger, value: string) {
     setForms(prev => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
@@ -96,8 +98,8 @@ export default function PassengersScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <AppHeader title="Passengers" subtitle={`${routeOrigin} → ${routeDestination}`} showBack />
-      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 2 : 1} colors={colors} />
+      <AppHeader title="Passengers" subtitle={`${routeOrigin} ${arrow} ${routeDestination}`} showBack />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Passengers')} colors={colors} />
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {forms.map((passenger, i) => (
           <Card key={i} style={{ gap: 8 }}>

@@ -6,6 +6,7 @@ import {
   getCheckoutAdults,
   getPassengers,
   setPassengers,
+  getCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
 
 jest.mock('../../src/stores/checkoutStore');
@@ -33,6 +34,7 @@ jest.mock('expo-router', () => ({
 const mockGetTrip = getCheckoutTrip as jest.Mock;
 const mockGetAdults = getCheckoutAdults as jest.Mock;
 const mockSetPassengers = setPassengers as jest.Mock;
+const mockGetItinerary = getCheckoutItinerary as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -41,6 +43,7 @@ beforeEach(() => {
   });
   mockGetAdults.mockReturnValue(1);
   (getPassengers as jest.Mock).mockReturnValue([]);
+  mockGetItinerary.mockReturnValue(null);
 });
 
 describe('PassengersScreen', () => {
@@ -97,4 +100,17 @@ describe('PassengersScreen', () => {
     expect(getByTestId('error').props.children).toBe('Enter a valid email for passenger 1');
     expect(mockPush).not.toHaveBeenCalled();
   });
+});
+
+it('shows the outbound route for a round trip, not back home', () => {
+  mockGetTrip.mockReturnValue(null);
+  mockGetItinerary.mockReturnValue({
+    legs: [
+      { id: 'o', origin: 'LON', destination: 'PAR', originName: 'London', destinationName: 'Paris', direction: 'outbound' },
+      { id: 'r', origin: 'PAR', destination: 'LON', originName: 'Paris', destinationName: 'London', direction: 'return' },
+    ],
+    connections: [], totalPriceEur: 0, adults: 1, tripType: 'round_trip',
+  });
+  const { getByText } = render(<PassengersScreen />);
+  expect(getByText('London ⇄ Paris')).toBeTruthy();
 });

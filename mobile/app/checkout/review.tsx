@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { Stepper, checkoutSteps } from '../../src/components/Stepper';
+import { Stepper, checkoutFlow, checkoutSteps, stepIndex } from '../../src/components/Stepper';
 import { RouteMapMenu } from '../../src/components/RouteMapMenu';
 import { ModeBadge } from '../../src/components/ModeBadge';
 import { Card } from '../../src/components/ui/Card';
@@ -30,6 +30,7 @@ export default function ReviewScreen() {
   const { format } = useCurrency();
   const router = useRouter();
   const itinerary = getCheckoutItinerary();
+  const flow = checkoutFlow(itinerary);
   const trip = getCheckoutTrip();
   const adults = getCheckoutAdults();
   const passengers = getPassengers();
@@ -51,7 +52,7 @@ export default function ReviewScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="Review booking" subtitle={formatDayLabel(toISODate(new Date(first.departAt)))} showBack />
-      <Stepper steps={checkoutSteps(!!itinerary)} current={itinerary ? 3 : 2} colors={colors} />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Review')} colors={colors} />
       <ScrollView contentContainerStyle={styles.content}>
         <Card>
           <Text testID={itinerary ? 'itinerary-header' : undefined} style={[styles.overline, { color: colors.textSecondary }]}>

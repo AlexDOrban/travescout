@@ -8,14 +8,17 @@ import {
   getCheckoutIdempotencyKey,
   getCheckoutTransfer,
   setBookingResult,
+  getCheckoutItinerary,
 } from '../../src/stores/checkoutStore';
 import { book } from '../../src/api/booking';
+import { bookItinerary } from '../../src/api/itinerary';
 import { saveTransferPrefs } from '../../src/utils/transferPrefs';
 
 jest.mock('../../src/stores/checkoutStore');
 jest.mock('../../src/utils/transferPrefs');
 jest.mock('../../src/stores/searchStore');
 jest.mock('../../src/api/booking');
+jest.mock('../../src/api/itinerary');
 jest.mock('../../src/contexts/ThemeContext', () => ({
   useTheme: () => ({ colors: jest.requireActual('../../src/constants/colors').LIGHT, isDark: false }),
 }));
@@ -40,6 +43,8 @@ const mockGetAdults = getCheckoutAdults as jest.Mock;
 const mockGetPassengers = getPassengers as jest.Mock;
 const mockSetBookingResult = setBookingResult as jest.Mock;
 const mockBook = book as jest.Mock;
+const mockGetItinerary = getCheckoutItinerary as jest.Mock;
+const mockBookItinerary = bookItinerary as jest.Mock;
 
 function fillValidCard(getByTestId: (id: string) => any) {
   fireEvent.changeText(getByTestId('card-number'), '4242424242424242');
@@ -57,6 +62,7 @@ beforeEach(() => {
     score: 0.85, tags: [],
   });
   mockGetAdults.mockReturnValue(1);
+  mockGetItinerary.mockReturnValue(null);
   mockGetPassengers.mockReturnValue([{ name: 'John Doe', email: 'john@test.com' }]);
   (getCheckoutIdempotencyKey as jest.Mock).mockReturnValue('bk_test_key');
   (getCheckoutTransfer as jest.Mock).mockReturnValue({
@@ -167,4 +173,32 @@ describe('PaymentScreen', () => {
     expect(getByTestId('card-brand').props.children).toBe('Mastercard');
     expect(getByText('JOHN DOE')).toBeTruthy();
   });
+});
+
+it('books a round trip with tripType and the outbound endpoints', async () => {
+  const base = {
+    provider: 'rail', transportType: 'train', durationMins: 120, priceEur: 45, stops: 0, deepLink: '',
+    departAt: '2030-06-15T08:00:00Z', arriveAt: '2030-06-15T10:00:00Z',
+  };
+  const legs = [
+    { ...base, id: 'out', origin: 'LON', destination: 'PAR', originName: 'LON', destinationName: 'PAR', direction: 'outbound' },
+    { ...base, id: 'ret', origin: 'PAR', destination: 'LON', originName: 'PAR', destinationName: 'LON', direction: 'return' },
+  ];
+  mockGetTrip.mockReturnValue(null);
+  mockGetItinerary.mockReturnValue({
+    legs, connections: [{ transferMins: 4000, stay: true }], totalPriceEur: 90, adults: 1,
+    tripType: 'round_trip', viaConnections: false,
+  });
+  mockBookItinerary.mockResolvedValue({ bookingRef: 'TS-RT', status: 'confirmed', itinerary: { legs: [] } });
+
+  const { getByTestId, getByText } = render(<PaymentScreen />);
+  expect(getByText('LON ⇄ PAR')).toBeTruthy();
+  fillValidCard(getByTestId);
+  fireEvent.press(getByTestId('pay-btn'));
+
+  await waitFor(() =>
+    expect(mockBookItinerary).toHaveBeenCalledWith(
+      expect.objectContaining({ tripType: 'round_trip', origin: 'LON', destination: 'PAR', idempotencyKey: 'bk_test_key' }),
+    ),
+  );
 });

@@ -1,14 +1,45 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ColorPalette } from '../constants/colors';
+import type { CheckoutItinerary } from '../types/itinerary';
 
-export type CheckoutStep = 'Connections' | 'Getting there' | 'Passengers' | 'Review' | 'Pay';
+export type CheckoutStep =
+  | 'Connections'
+  | 'Outbound connections'
+  | 'Return connections'
+  | 'Getting there'
+  | 'Passengers'
+  | 'Review'
+  | 'Pay';
 
-// Itineraries get a Connections step first; the rest of checkout is shared,
-// so every screen shows a consistent "Step n of N".
-export function checkoutSteps(isItinerary: boolean): CheckoutStep[] {
-  const base: CheckoutStep[] = ['Getting there', 'Passengers', 'Review', 'Pay'];
-  return isItinerary ? ['Connections', ...base] : base;
+export type CheckoutFlow = 'one_way' | 'one_way_connections' | 'round_trip' | 'round_trip_connections';
+
+// A one-way itinerary only exists via "Add Connections"; a round trip is always
+// an itinerary and remembers whether the user asked for connections.
+export function checkoutFlow(itinerary: CheckoutItinerary | null | undefined): CheckoutFlow {
+  if (!itinerary) return 'one_way';
+  if (itinerary.tripType === 'round_trip') {
+    return itinerary.viaConnections ? 'round_trip_connections' : 'round_trip';
+  }
+  return 'one_way_connections';
+}
+
+const BASE_STEPS: CheckoutStep[] = ['Getting there', 'Passengers', 'Review', 'Pay'];
+
+// Every screen shows a consistent "Step n of N" for its flow.
+export function checkoutSteps(flow: CheckoutFlow): CheckoutStep[] {
+  switch (flow) {
+    case 'one_way_connections':
+      return ['Connections', ...BASE_STEPS];
+    case 'round_trip_connections':
+      return ['Outbound connections', 'Return connections', ...BASE_STEPS];
+    default:
+      return BASE_STEPS;
+  }
+}
+
+export function stepIndex(flow: CheckoutFlow, step: CheckoutStep): number {
+  return checkoutSteps(flow).indexOf(step);
 }
 
 interface Props {
