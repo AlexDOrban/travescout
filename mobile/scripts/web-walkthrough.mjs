@@ -4,7 +4,7 @@
 //
 // Prereqs: backend on :3000 (demo user seeded), Metro on :8081
 // (`EXPO_PUBLIC_API_URL=http://localhost:3000 npx expo start --clear`).
-// Usage: node scripts/web-walkthrough.mjs <outDir> [light|dark]
+// Usage: node scripts/web-walkthrough.mjs <outDir> [light|dark] [oneway|roundtrip]
 // Note: the Pay step returns 402 unless backend/.env has a real sk_test key.
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { Buffer } from 'node:buffer';
 
 const OUT = process.argv[2];
 const SCHEME = process.argv[3] ?? 'light';
+const FLOW = process.argv[4] ?? 'oneway';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PORT = 9333;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -39,7 +40,7 @@ const evaluate = async expr => {
 async function shot(name) {
   await sleep(700);
   const { data } = await send('Page.captureScreenshot', { format: 'png' });
-  writeFileSync(`${OUT}/${SCHEME}-${name}.png`, Buffer.from(data, 'base64'));
+  writeFileSync(`${OUT}/${SCHEME}-${FLOW}-${name}.png`, Buffer.from(data, 'base64'));
   console.log('shot', name);
 }
 async function waitFor(testId, timeout = 15000) {
@@ -112,6 +113,7 @@ try {
   await click('from-picker-option-LON');
   await type('to-picker-input', 'Par');
   await click('to-picker-option-PAR');
+  if (FLOW === 'roundtrip') await click('trip-type-return');
   await click('depart-date');
   await shot('03-calendar');
   await click('calendar-week');
@@ -127,12 +129,34 @@ try {
   await click('watch-price');
   await shot('07-watch-toast');
 
-  const firstTrip = await evaluate(`document.querySelector('[data-testid^="trip-"]:not([data-testid="trip-skeleton"])').getAttribute('data-testid')`);
-  await click(firstTrip);
-  await waitFor('book-btn');
-  await shot('08-trip-detail');
+  // Expo web keeps earlier stack screens in the DOM: always take the last match.
+  const pickFirstTrip = () =>
+    evaluate(`[...document.querySelectorAll('[data-testid^="trip-"]:not([data-testid="trip-skeleton"])')].pop().getAttribute('data-testid')`);
 
-  await click('book-btn');
+  await click(await pickFirstTrip());
+  if (FLOW === 'roundtrip') {
+    await waitFor('choose-return-btn');
+    await shot('08-outbound-detail');
+    await click('choose-return-btn');
+    await waitFor('outbound-summary', 20000);
+    await waitFor('results-list', 20000);
+    await sleep(1500);
+    await shot('08b-return-results');
+    await click(await pickFirstTrip());
+    await waitFor('book-round-trip-btn');
+    await shot('08c-return-detail');
+    await click('add-connections-btn');
+    await sleep(3000);
+    await shot('08d-outbound-connections');
+    await click('continue-btn');
+    await sleep(3000);
+    await shot('08e-return-connections');
+    await click('continue-btn');
+  } else {
+    await waitFor('book-btn');
+    await shot('08-trip-detail');
+    await click('book-btn');
+  }
   await waitFor('transfer-continue');
   await shot('09-transfer');
   await click('transfer-skip');

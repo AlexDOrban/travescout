@@ -352,4 +352,12 @@ describe('round trips', () => {
     expect(setDirectionConnections).toHaveBeenCalledWith('return', undefined, undefined);
     expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
   });
+
+  it("labels the bar with this direction's total, not the whole trip", () => {
+    mockParams = { direction: 'return' };
+    mockGetCheckoutMainLeg.mockImplementation((dir = 'outbound') => ({ ...MOCK_MAIN_LEG, id: dir }));
+    const { getByText, queryByText } = render(<ConnectionsScreen />);
+    expect(getByText('Return total')).toBeTruthy();
+    expect(queryByText('Total for all legs')).toBeNull();
+  });
 });

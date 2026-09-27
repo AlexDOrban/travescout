@@ -1,6 +1,6 @@
 # TraveScout — Build Status
 
-_Last updated: 2026-09-26. Read this first when resuming with fresh context._
+_Last updated: 2026-09-27. Read this first when resuming with fresh context._
 
 ## What the app is
 A multi-modal travel app: search flights + buses + trains in one place, book
@@ -8,8 +8,8 @@ single trips or stitched multi-leg **itineraries** (bus → flight → train wit
 connections), and keep every ticket/QR in one place ("My Trips"). Backend is an
 Express + Postgres API; the app is Expo React Native (SDK 54) run in Expo Go.
 
-- **Backend:** `backend/` (Express, `pg`, Stripe). Tests: `npm test` (Jest, 161 passing; needs Postgres running — `brew services start postgresql@17`).
-- **Mobile:** `mobile/` (Expo Router, SDK 54). Tests: `npm test` (Jest, 278 passing); `npm run typecheck`; `npm run lint`.
+- **Backend:** `backend/` (Express, `pg`, Stripe). Tests: `npm test` (Jest, 178 passing; needs Postgres running — `brew services start postgresql@17`).
+- **Mobile:** `mobile/` (Expo Router, SDK 54). Tests: `npm test` (Jest, 326 passing); `npm run typecheck`; `npm run lint`.
 - **Branch:** `feature/multi-modal-routing`. Not yet merged to `master`.
 
 ## How to run (local)
@@ -49,6 +49,23 @@ Express + Postgres API; the app is Expo React Native (SDK 54) run in Expo Go.
 - Maps deep-link: `mobile/src/utils/maps.ts` + `components/RouteMapMenu.tsx`.
 - Checkout state: `mobile/src/stores/checkoutStore.ts` (per-attempt idempotency
   key). API client + refresh logic: `mobile/src/api/client.ts`.
+
+## Round trips milestone (2026-09-27)
+Spec: `docs/superpowers/specs/2026-09-26-round-trips-design.md`, plan:
+`docs/superpowers/plans/2026-09-26-round-trips.md`.
+- Search: One-way / Return toggle, return date (default depart + 3), recents keep it.
+- Results: pick outbound (`/results`), then return (`/results?leg=return`, cities
+  swapped, pinned outbound, returns < 60 min after arrival hidden, overnight
+  outbound moves the return search to its arrival day).
+- Checkout: a round trip is one itinerary with `direction`-tagged legs; optional
+  connections run per direction (Step n of 6); review/confirmation grouped by
+  direction; route map reverses home ↔ stay for the return (`RouteMapMenu reversed`).
+- Backend: migration `010_round_trips.sql` (`itineraries.trip_type`,
+  `trips.direction`); `/book/itinerary` accepts `tripType`, up to 3 legs per
+  direction, server-side check that the return departs after the outbound arrives.
+- One direction failing at the provider → partial capture (only booked legs
+  charged); confirmation offers "Search return again".
+- Walkthrough: `node scripts/web-walkthrough.mjs <outDir> [light|dark] [oneway|roundtrip]`.
 
 ## Modern redesign milestone (2026-09-26)
 Omio/Trainline-inspired redesign + bug sweep, all within Expo Go 54 (added only
@@ -100,7 +117,7 @@ price ignored → would charge real €200, NaN → 400).
 - Real Stripe key + native Stripe SDK (dev build) to take real payments.
 - Provider `book()` for FlixBus/rail/Amadeus are stubs (gated off in production
   unless `MOCK_PROVIDERS=true`); wire real partner APIs when credentials exist.
-- Round trips not modelled end-to-end (return date removed from search for now).
+- Round-trip price alerts and round-trip fares (cheaper than two singles) are not modelled.
 - Price alerts are on-device and checked when the Alerts tab opens; no push
   notifications/background checks yet (needs expo-notifications + a server job).
 - In-memory offer store + idempotency assume single backend instance; use Redis/DB

@@ -450,7 +450,7 @@ export default function ConnectionsScreen() {
       </View>
     </ScrollView>
       <BottomBar
-        caption="Total for all legs"
+        caption={roundTrip ? (direction === 'return' ? 'Return total' : 'Outbound total') : 'Total for all legs'}
         amount={format(totalEur)}
         ctaTitle="Continue"
         ctaTestID="continue-btn"
