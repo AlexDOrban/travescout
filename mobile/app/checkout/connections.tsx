@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCurrency } from '../../src/contexts/CurrencyContext';
 import { AppHeader } from '../../src/components/AppHeader';
@@ -21,6 +21,8 @@ import {
   getCheckoutItinerary,
   getCheckoutMainLeg,
   setCheckoutItinerary,
+  getDirectionConnections,
+  setDirectionConnections,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
 import { searchConnections } from '../../src/api/itinerary';
@@ -28,7 +30,7 @@ import {
   needsDepartureConnection,
   needsArrivalConnection,
 } from '../../src/utils/connections';
-import type { Leg } from '../../src/types/itinerary';
+import type { Direction, Leg } from '../../src/types/itinerary';
 
 function minutesBefore(connectionArriveAt: string, mainDepartAt: string): number {
   return Math.round(
@@ -49,17 +51,24 @@ export default function ConnectionsScreen() {
   const { format } = useCurrency();
   const router = useRouter();
 
-  const itinerary = getCheckoutItinerary();
+  const params = useLocalSearchParams<{ direction?: string }>();
+  const direction: Direction = params.direction === 'return' ? 'return' : 'outbound';
 
+  const itinerary = getCheckoutItinerary();
+  const roundTrip = itinerary?.tripType === 'round_trip';
   const flow = checkoutFlow(itinerary);
+  const step = roundTrip ? (direction === 'return' ? 'Return connections' : 'Outbound connections') : 'Connections';
   const searchMeta = getSearchMeta();
   // Never derive the main leg from legs[0]: once connections are added the
   // first leg is the departure feeder, not the main leg.
-  const mainLeg = getCheckoutMainLeg();
+  const mainLeg = getCheckoutMainLeg(direction);
   const adults = itinerary?.adults ?? 1;
 
-  const originCityCode = searchMeta?.from ?? '';
-  const destCityCode = searchMeta?.to ?? '';
+  // The return runs from the destination city back to the origin city.
+  const originCityCode = (direction === 'return' ? searchMeta?.to : searchMeta?.from) ?? '';
+  const destCityCode = (direction === 'return' ? searchMeta?.from : searchMeta?.to) ?? '';
+  // Coming back to this pass keeps what was picked before.
+  const saved = roundTrip ? getDirectionConnections(direction) : undefined;
 
   const showDeparture = mainLeg
     ? needsDepartureConnection(originCityCode, mainLeg.origin)
@@ -70,8 +79,8 @@ export default function ConnectionsScreen() {
 
   const [departureOptions, setDepartureOptions] = useState<Leg[]>([]);
   const [arrivalOptions, setArrivalOptions] = useState<Leg[]>([]);
-  const [selectedDeparture, setSelectedDeparture] = useState<Leg | null>(null);
-  const [selectedArrival, setSelectedArrival] = useState<Leg | null>(null);
+  const [selectedDeparture, setSelectedDeparture] = useState<Leg | null>(saved?.departure ?? null);
+  const [selectedArrival, setSelectedArrival] = useState<Leg | null>(saved?.arrival ?? null);
   const [skipDeparture, setSkipDeparture] = useState(false);
   const [skipArrival, setSkipArrival] = useState(false);
 
@@ -151,6 +160,11 @@ export default function ConnectionsScreen() {
     if (!mainLeg) return;
     const depLeg = skipDeparture ? undefined : (selectedDeparture ?? undefined);
     const arrLeg = skipArrival ? undefined : (selectedArrival ?? undefined);
+    if (roundTrip) {
+      setDirectionConnections(direction, depLeg, arrLeg);
+      router.push(direction === 'outbound' ? '/checkout/connections?direction=return' : '/checkout/transfer');
+      return;
+    }
     setCheckoutItinerary(mainLeg, adults, depLeg, arrLeg);
     router.push('/checkout/transfer');
   }
@@ -180,8 +194,8 @@ export default function ConnectionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
     <ScrollView style={styles.container}>
-      <AppHeader title="Add Connections" showBack />
-      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, 'Connections')} colors={colors} />
+      <AppHeader title={roundTrip ? step : 'Add Connections'} showBack />
+      <Stepper steps={checkoutSteps(flow)} current={stepIndex(flow, step)} colors={colors} />
       <View style={styles.content}>
 
         {/* Selected main leg summary */}
@@ -223,7 +237,7 @@ export default function ConnectionsScreen() {
               Getting to {mainLeg.origin}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Bus & train options from {searchMeta?.from}
+              Bus & train options from {originCityCode}
             </Text>
 
             {departureError ? (
@@ -331,7 +345,7 @@ export default function ConnectionsScreen() {
               Getting from {mainLeg.destination}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Bus & train options to {searchMeta?.to}
+              Bus & train options to {destCityCode}
             </Text>
 
             {arrivalError ? (

@@ -5,6 +5,8 @@ import {
   getCheckoutItinerary,
   getCheckoutMainLeg,
   setCheckoutItinerary,
+  setDirectionConnections,
+  getDirectionConnections,
 } from '../../src/stores/checkoutStore';
 import { getSearchMeta } from '../../src/stores/searchStore';
 import { searchConnections } from '../../src/api/itinerary';
@@ -34,8 +36,10 @@ jest.mock('../../src/contexts/CurrencyContext', () => ({
 }));
 
 const mockPush = jest.fn();
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useLocalSearchParams: () => mockParams,
   router: { canGoBack: () => false, back: jest.fn() },
 }));
 
@@ -312,5 +316,40 @@ describe('ConnectionsScreen', () => {
       expect(getByTestId(`departure-option-${MOCK_DEPARTURE_CONNECTION.id}`)).toBeTruthy();
     });
     expect(queryByTestId('departure-option-bus:dep:late')).toBeNull();
+  });
+});
+
+describe('round trips', () => {
+  const RT_ITIN = { legs: [], connections: [], totalPriceEur: 0, adults: 1, tripType: 'round_trip', viaConnections: true };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockParams = {};
+    mockGetCheckoutItinerary.mockReturnValue(RT_ITIN);
+    mockGetSearchMeta.mockReturnValue({ from: 'BUD', to: 'NCE', adults: 1 });
+    (getDirectionConnections as jest.Mock).mockReturnValue({});
+    mockNeedsDeparture.mockReturnValue(false);
+    mockNeedsArrival.mockReturnValue(false);
+  });
+
+  it('outbound pass continues to the return pass', () => {
+    mockGetCheckoutMainLeg.mockImplementation((dir = 'outbound') => ({ ...MOCK_MAIN_LEG, id: dir }));
+    const { getByTestId } = render(<ConnectionsScreen />);
+    fireEvent.press(getByTestId('continue-btn'));
+    expect(setDirectionConnections).toHaveBeenCalledWith('outbound', undefined, undefined);
+    expect(mockPush).toHaveBeenCalledWith('/checkout/connections?direction=return');
+  });
+
+  it('return pass uses the return main leg with the cities swapped', () => {
+    mockParams = { direction: 'return' };
+    mockGetCheckoutMainLeg.mockImplementation((dir = 'outbound') => ({ ...MOCK_MAIN_LEG, id: dir, origin: 'NCE', destination: 'VIE' }));
+    const { getByTestId } = render(<ConnectionsScreen />);
+    expect(mockGetCheckoutMainLeg).toHaveBeenCalledWith('return');
+    // departure feeder is checked from the destination city (NCE) to the return's hub
+    expect(mockNeedsDeparture).toHaveBeenCalledWith('NCE', 'NCE');
+    expect(mockNeedsArrival).toHaveBeenCalledWith('BUD', 'VIE');
+    fireEvent.press(getByTestId('continue-btn'));
+    expect(setDirectionConnections).toHaveBeenCalledWith('return', undefined, undefined);
+    expect(mockPush).toHaveBeenCalledWith('/checkout/transfer');
   });
 });
