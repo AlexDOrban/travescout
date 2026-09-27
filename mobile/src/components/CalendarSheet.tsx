@@ -57,10 +57,13 @@ export function CalendarSheet({ visible, onClose, value, onSelect, testID, minDa
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
+  // Shortcuts count from the earliest selectable day; when that isn't today
+  // (e.g. a return picked after departure) name them relative to it.
+  const fromToday = min === todayISO();
   const quick = [
-    { key: 'today', label: 'Today', iso: min },
-    { key: 'tomorrow', label: 'Tomorrow', iso: addDays(min, 1) },
-    { key: 'week', label: 'In a week', iso: addDays(min, 7) },
+    { key: 'today', label: fromToday ? 'Today' : 'Same day', iso: min },
+    { key: 'tomorrow', label: fromToday ? 'Tomorrow' : 'Next day', iso: addDays(min, 1) },
+    { key: 'week', label: fromToday ? 'In a week' : 'A week later', iso: addDays(min, 7) },
   ];
 
   return (

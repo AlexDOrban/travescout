@@ -139,4 +139,20 @@ describe('round trips', () => {
     expect(mockClearCheckout).toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith('/results');
   });
+
+  it('does not claim a partly booked direction was free or offer to rebook it', () => {
+    setSearchQuery({ from: LON, to: PAR, departDate: '2030-06-15', returnDate: '2030-06-18', adults: 1 });
+    mockGetBookingResult.mockReturnValue({
+      ...booking('failed'),
+      itinerary: {
+        ...booking('failed').itinerary,
+        // return flight failed, return feeder bus booked (and was charged)
+        legs: [leg('o', 0, 'outbound'), leg('r', 1, 'return', 'failed'), leg('rb', 2, 'return')],
+      },
+    });
+    const { queryByTestId, queryByText, getByText } = render(<ConfirmationScreen />);
+    expect(queryByText(/Return not booked — you weren’t charged for it/)).toBeNull();
+    expect(queryByTestId('search-return-again')).toBeNull();
+    expect(getByText('Some legs could not be booked. Please review the details below.')).toBeTruthy();
+  });
 });

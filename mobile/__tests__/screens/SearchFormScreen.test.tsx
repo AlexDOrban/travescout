@@ -244,4 +244,14 @@ describe('round trips', () => {
     fireEvent.press(await utils.findByTestId('recent-LON-PAR'));
     expect(utils.getByTestId('return-date-value').props.children).toBe(formatDayLabel(addDays(depart, 3)));
   });
+
+  it('labels the return picker shortcuts relative to departure, not today', async () => {
+    const utils = await renderSettled(<SearchScreen />);
+    fireEvent.press(utils.getByTestId('trip-type-return'));
+    fireEvent.press(utils.getByTestId('return-date'));
+    expect(utils.queryByText('Today')).toBeNull();
+    expect(utils.queryByText('Tomorrow')).toBeNull();
+    fireEvent.press(utils.getByText('Same day'));
+    expect(utils.getByTestId('return-date-value').props.children).toBe(formatDayLabel(addDays(todayISO(), 1)));
+  });
 });

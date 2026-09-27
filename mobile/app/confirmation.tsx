@@ -51,6 +51,9 @@ export default function ConfirmationScreen() {
   const roundTrip = itineraryBooking?.itinerary.trip_type === 'round_trip';
   const groups = legsByDirection(legs);
   const failedIn = (dir: Direction) => groups[dir].some(l => l.status !== 'confirmed');
+  // Only a direction where nothing booked is "not booked, not charged" and
+  // worth searching again; a partly booked one was charged for what booked.
+  const wholeFailed = (dir: Direction) => groups[dir].length > 0 && groups[dir].every(l => l.status !== 'confirmed');
 
   // Re-search just the direction that didn't book, as a one-way.
   function searchAgain(dir: Direction) {
@@ -139,9 +142,9 @@ export default function ConfirmationScreen() {
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {partiallyFailed
-              ? roundTrip && failedIn('return') && !failedIn('outbound')
+              ? roundTrip && wholeFailed('return') && !failedIn('outbound')
                 ? 'Your outbound is booked. Return not booked — you weren’t charged for it.'
-                : roundTrip && failedIn('outbound') && !failedIn('return')
+                : roundTrip && wholeFailed('outbound') && !failedIn('return')
                   ? 'Your return is booked. Outbound not booked — you weren’t charged for it.'
                   : 'Some legs could not be booked. Please review the details below.'
               : `Tickets sent to your email and saved in My Trips.`}
@@ -186,7 +189,7 @@ export default function ConfirmationScreen() {
                   {dir === 'outbound' ? 'OUTBOUND' : 'RETURN'}
                 </Text>
                 {groups[dir].map(l => renderLeg(l, legs.indexOf(l)))}
-                {failedIn(dir) && (
+                {wholeFailed(dir) && (
                   <Button
                     testID={`search-${dir}-again`}
                     title={`Search ${dir} again`}
